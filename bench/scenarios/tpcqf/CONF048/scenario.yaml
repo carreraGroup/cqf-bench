@@ -1,0 +1,38 @@
+id: CONF048
+name: GET /PlanDefinition/$data-requirements conformance
+test_type: conformance
+kind: fetch
+method: GET
+path: /PlanDefinition/$data-requirements
+required_capabilities: []
+expected_http:
+  success:
+  - 200
+  - 201
+  - 202
+  - 204
+  unsupported:
+  - 422
+  warning:
+  - 400
+  - 401
+  - 403
+  - 404
+  - 405
+  - 406
+  - 409
+  - 410
+  - 412
+  - 415
+  - 429
+  fail:
+  - 500
+  - 501
+  - 502
+  - 503
+  - 504
+expected_file: expected.yaml
+cql_file: scenario.cql
+cql_entrypoint: ConformanceTrue
+query:
+  target: PlanDefinition/Test|1.0.0

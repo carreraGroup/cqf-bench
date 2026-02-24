@@ -1,0 +1,43 @@
+suite_id: Library-Write-Once-Execute-Many
+description: Write a library once, then execute it repeatedly to measure steady-state
+  evaluate throughput
+defaults:
+  timeout_seconds: 30
+  concurrency: 16
+  warmup_requests: 5
+  requests_per_patient: 1
+scenarios:
+- id: L10
+  name: Write library once, then evaluate many
+  kind: compute
+  method: POST
+  path: /Library/BenchPersist/$evaluate
+  required_capabilities:
+  - library_write_once_execute_many
+  - resident_execute
+  setup:
+    method: PUT
+    path_role: fhir
+    path: /Library/BenchPersist
+    payload:
+      resourceType: Library
+      id: BenchPersist
+      url: http://example.com/Library/BenchPersist
+      version: 1.0.0
+      status: active
+      content:
+      - contentType: text/cql
+        data: bGlicmFyeSBCZW5jaFBlcnNpc3QgdmVyc2lvbiAnMS4wLjAnCgpjb250ZXh0IFVuZmlsdGVyZWQKCmRlZmluZSBJbkRlbm9taW5hdG9yOgogIHRydWUK
+    per_patient: false
+    expected_status:
+    - 200
+    - 201
+  expected_status:
+  - 200
+  payload:
+    resourceType: Parameters
+    parameter:
+    - name: subject
+      valueString: Patient/{patient_id}
+    - name: expression
+      valueString: InDenominator

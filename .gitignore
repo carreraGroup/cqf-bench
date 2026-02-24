@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+results/
+data/generated/
+.DS_Store
+bench/config/local.engines.yaml
+docker-compose.override.yml

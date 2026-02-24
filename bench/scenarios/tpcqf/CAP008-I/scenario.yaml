@@ -1,0 +1,28 @@
+id: CAP008-I
+name: Query with sort (inline)
+test_type: capability
+kind: compute
+method: POST
+path: /Library/$evaluate
+query:
+  library: Library/BenchCAP008-I|1.0.0
+  subject: Patient/{patient_id}
+  expression: SortedConditionIds
+required_capabilities:
+- inline_bundle_execute
+- resident_execute
+selectivity: 0.2
+expected_http:
+  success:
+  - 200
+  unsupported:
+  - 400
+  - 405
+  - 415
+  - 422
+  - 501
+  fail: []
+expected_file: expected.yaml
+data_file: data.yaml
+cql_file: scenario.cql
+cql_entrypoint: SortedConditionIds

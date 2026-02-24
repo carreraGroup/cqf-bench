@@ -1,0 +1,120 @@
+engines:
+- name: mercury-local
+  adapter: mercury-cqf
+  base_url: http://localhost:8080
+  cqf_base_path: /cqf
+  data_base_path: /api
+  fhir_base_path: /fhir
+  headers: {}
+  capabilities:
+  - inline_bundle_execute
+  - resident_data_load
+  - resident_execute
+  - system_cql
+  - library_write_once_execute_many
+  docker:
+    enabled: true
+    image: mercury-cqf-bench:latest
+    local_image_only: true
+    pull_on_bootstrap: false
+    container_name: mercury-cqf-bench
+    host_port: 8080
+    container_port: 8080
+    env: {}
+    health_path: /cqf/metadata
+- name: hapi-cqf-ruler-local
+  adapter: hapi-cqf-ruler
+  base_url: http://localhost:8081
+  cqf_base_path: /fhir
+  data_base_path: /fhir
+  fhir_base_path: /fhir
+  headers: {}
+  capabilities:
+  - resident_data_load
+  - resident_execute
+  - system_cql
+  - inline_bundle_execute
+  docker:
+    enabled: true
+    image: alphora/cqf-ruler:latest
+    container_name: hapi-cqf-ruler
+    host_port: 8081
+    container_port: 8080
+    env:
+      hapi.fhir.cql_enabled: 'true'
+    health_path: /fhir/metadata
+- name: firely-runtime
+  adapter: generic-cqf
+  base_url: https://example-firely-host
+  cqf_base_path: /cqf
+  data_base_path: /fhir
+  headers:
+    Authorization: Bearer ${ENGINE_BEARER_TOKEN}
+  capabilities:
+  - resident_data_load
+  - resident_execute
+  docker:
+    enabled: false
+    image: ''
+    container_name: ''
+    host_port: 0
+    container_port: 0
+    env: {}
+    health_path: /cqf/metadata
+- name: smile-cdr
+  adapter: smile-cdr
+  base_url: https://example-smile-host
+  cqf_base_path: /fhir
+  data_base_path: /fhir
+  headers:
+    Authorization: Bearer ${SMILE_BEARER_TOKEN}
+  capabilities:
+  - resident_data_load
+  - resident_execute
+  docker:
+    enabled: false
+    image: ''
+    container_name: ''
+    host_port: 0
+    container_port: 0
+    env: {}
+    health_path: /fhir/metadata
+- name: ncqa-firely-runtime
+  adapter: generic-cqf
+  base_url: https://example-ncqa-firely-host
+  cqf_base_path: /cqf
+  data_base_path: /fhir
+  headers:
+    Authorization: Bearer ${NCQA_FIRELY_BEARER_TOKEN}
+  capabilities:
+  - resident_data_load
+  - resident_execute
+  disabled: true
+  disabled_reason: No public NCQA/Firely docker image known; configure reachable endpoint
+    and token.
+  docker:
+    enabled: false
+    image: ''
+    container_name: ''
+    host_port: 0
+    container_port: 0
+    env: {}
+    health_path: /cqf/metadata
+- name: google-cql
+  adapter: google-cql
+  base_url: http://localhost:8090
+  cqf_base_path: ''
+  data_base_path: ''
+  headers: {}
+  capabilities: []
+  disabled: true
+  disabled_reason: google/cql is not a CQF REST server; requires wrapper service adapter
+    before CQF benchmarking.
+  docker:
+    enabled: false
+    image: ''
+    container_name: ''
+    host_port: 0
+    container_port: 0
+    env: {}
+    health_path: /healthz

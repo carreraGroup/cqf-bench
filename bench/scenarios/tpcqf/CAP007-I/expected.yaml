@@ -1,0 +1,7 @@
+when_status_in:
+- 200
+validators:
+- type: not_operation_outcome_error
+- type: min_items
+  path: $.parameter[*]
+  min: 1

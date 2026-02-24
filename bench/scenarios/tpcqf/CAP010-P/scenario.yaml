@@ -1,0 +1,42 @@
+id: CAP010-P
+name: Many returned results with exists (preload)
+test_type: capability
+kind: compute
+method: GET
+path: /Library/$evaluate
+query:
+  library: Library/BenchCAP010-P|1.0.0
+  subject: Patient/{patient_id}
+  expression: ExistsManyResults
+required_capabilities:
+- resident_data_load
+- resident_execute
+selectivity: 0.2
+expected_http:
+  success:
+  - 200
+  unsupported:
+  - 400
+  - 405
+  - 415
+  - 422
+  - 501
+  fail: []
+expected_file: expected.yaml
+data_file: data.yaml
+cql_file: scenario.cql
+cql_entrypoint: ExistsManyResults
+setup:
+  method: POST
+  path_role: data
+  path: /Bundle
+  per_patient: true
+  expected_http:
+    success:
+    - 200
+    - 201
+    unsupported:
+    - 400
+    - 422
+    fail: []
+restart_after_setup: true
