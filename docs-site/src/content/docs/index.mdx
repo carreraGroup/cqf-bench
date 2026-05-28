@@ -1,0 +1,140 @@
+---
+title: CQF Bench
+description: Open benchmark harness for comparing CQF / Clinical Reasoning endpoint behavior and performance across engines.
+template: splash
+hero:
+  tagline: A reproducible benchmark harness for CQF / Clinical Reasoning engines — measure conformance and performance with the same scenarios, the same data, and the same scoring rules.
+  image:
+    file: ../../assets/logo.png
+    alt: CQF Bench
+  actions:
+    - text: Get Started
+      link: /cqf-bench/getting-started/
+      icon: right-arrow
+    - text: Read the Overview
+      link: /cqf-bench/overview/
+      icon: open-book
+      variant: minimal
+    - text: View on GitHub
+      link: https://github.com/carreraGroup/cqf-bench
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## What is CQF Bench?
+
+CQF Bench is an open-source harness for evaluating servers that implement the
+[FHIR Clinical Reasoning module](https://www.hl7.org/fhir/clinicalreasoning-module.html)
+and the [Clinical Quality Framework (CQF)](https://confluence.hl7.org/spaces/CQIWC/pages/22774096/Clinical+Quality+Framework)
+operations — `$evaluate`, `$evaluate-measure`, `$care-gaps`, `$apply`,
+`$data-requirements`, and friends.
+
+It runs a fixed catalog of scenarios against one or more engines, normalizes for
+each engine's API quirks through adapters, validates correctness beyond the HTTP
+status code, and emits machine-readable and human-readable reports. The goal is
+**reproducibility**: same scenarios, same generated data, same scoring rules,
+across every engine you test.
+
+## Why it exists
+
+CQL and CQF implementations differ in subtle ways — which operations they
+support, how they accept libraries and data, and how they behave under load.
+"It works on my server" is hard to compare across products. CQF Bench replaces
+ad-hoc testing with a versioned suite and a deterministic scoring model so that
+results are something you can publish, diff, and trust.
+
+<CardGrid stagger>
+  <Card title="Conformance, then performance" icon="approve-check">
+    Separate **conformance** checks (is the endpoint reachable and CQF-correct?)
+    from **capability + performance** checks (does the CQL produce the right
+    answer, and how fast?). Performance is only timed on correct responses.
+  </Card>
+  <Card title="Engine adapters" icon="puzzle">
+    Pluggable adapters rewrite paths, methods, and payloads for each engine
+    (Mercury, HAPI CQF Ruler, Blaze, Firely, Smile CDR, …) so the same scenario
+    runs everywhere without forking the test.
+  </Card>
+  <Card title="Deterministic data" icon="seti:yml">
+    FHIR fixtures are generated from FSH templates and a selectivity-driven
+    mutator with a stable seed, so the same scale produces the same data on every
+    run and every machine.
+  </Card>
+  <Card title="Correctness validators" icon="document">
+    Scenarios assert on the response body — `Parameters` contents, define
+    results, `OperationOutcome` errors — not just the status code. A 200 that
+    returns the wrong answer is a FAIL.
+  </Card>
+  <Card title="Reproducible reports" icon="bars">
+    Every run writes a JSON report and a Markdown summary keyed by suite hash and
+    git commit, with conformance and capability matrices side by side across
+    engines.
+  </Card>
+  <Card title="Open and extensible" icon="open-book">
+    Apache-2.0. Add a scenario folder, list it in the suite, and it runs. Add an
+    adapter class to onboard a new engine.
+  </Card>
+</CardGrid>
+
+## Quick start
+
+```bash
+# 1. Clone and enter the repo
+git clone https://github.com/carreraGroup/cqf-bench.git
+cd cqf-bench
+
+# 2. Create your local engine config from the tracked template
+cp bench/config/engines.example.yaml bench/config/local.engines.yaml
+
+# 3. Stand up an open-source reference engine (HAPI CQF Ruler)
+python scripts/manage_engines.py bootstrap \
+  --engines bench/config/local.engines.yaml \
+  --engine hapi-cqf-ruler-local
+
+# 4. Bootstrap the Python environment
+scripts/bootstrap_python_env.sh --recreate
+source .venv/bin/activate
+
+# 5. Run the full benchmark at a small scale
+python scripts/run_benchmark.py \
+  --engines bench/config/local.engines.yaml \
+  --suite bench/scenarios/tpcqf/suite.yaml \
+  --scale 100 \
+  --filter-engine hapi-cqf-ruler-local
+```
+
+Reports land in `results/<run_id>.json` and `results/<run_id>.md`. See
+[Getting Started](/cqf-bench/getting-started/) for the step-by-step version.
+
+## Example use cases
+
+- **Engine selection** — Compare candidate CQF servers on the operations and CQL
+  patterns your program actually uses before committing to one.
+- **Regression tracking** — Re-run the suite against new builds of your engine to
+  catch conformance or latency regressions, keyed by git commit and suite hash.
+- **Conformance auditing** — Produce a per-operation PASS / UNSUPPORTED / WARNING /
+  FAIL matrix for a server's CQF REST surface.
+- **Capability exploration** — See which CQL constructs (valueset retrieves,
+  with/without joins, sorts, tuples, complex predicates) a given engine evaluates
+  correctly, and how cost scales with data.
+- **Vendor-neutral reporting** — Publish reproducible numbers that others can
+  re-run from the same suite and data generator.
+
+## Contribute
+
+CQF Bench is community-driven. New scenarios, new engine adapters, scoring
+improvements, and documentation fixes are all welcome.
+
+<CardGrid>
+  <LinkCard
+    title="Contributing guide"
+    description="How to add scenarios, onboard engines, and run the validation checks."
+    href="/cqf-bench/contributing/"
+  />
+  <LinkCard
+    title="Open an issue or PR"
+    description="Report a bug, request a scenario, or propose an adapter on GitHub."
+    href="https://github.com/carreraGroup/cqf-bench/issues"
+  />
+</CardGrid>
