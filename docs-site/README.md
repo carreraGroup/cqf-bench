@@ -45,13 +45,15 @@ docs-site/
   src/
     content.config.ts           # Starlight content collection
     content/docs/               # documentation pages (Markdown / MDX)
+      engines/                  # product-specific engine setup (HAPI CQF Ruler, …)
+      guides/                   # task-oriented walkthroughs (incl. add-an-engine)
     assets/                     # images referenced from content
   public/                       # static files (favicon, etc.)
 ```
 
 ## GitHub Pages deployment
 
-Pushes to `main` run [`.github/workflows/deploy-docs-site.yml`](../.github/workflows/deploy-docs-site.yml), which:
+Pushes to `main` or `master` run [`.github/workflows/deploy-docs-site.yml`](../.github/workflows/deploy-docs-site.yml), which:
 
 1. Installs npm dependencies in `docs-site/`
 2. Runs `npm run build`
@@ -61,6 +63,13 @@ Pushes to `main` run [`.github/workflows/deploy-docs-site.yml`](../.github/workf
 **One-time repo setup:** Settings → Pages → Build and deployment → **Source: GitHub Actions**.
 
 The site is configured as a **project site** at `https://carreragroup.github.io/cqf-bench/` (`base: '/cqf-bench/'` in `astro.config.mjs`). Doc links in content use that prefix. For a custom domain, set `ASTRO_SITE` / `ASTRO_BASE` (or edit `astro.config.mjs`) and update those links.
+
+## Diagrams (Mermaid)
+
+The [Diagrams](/cqf-bench/diagrams/) page uses
+[`@pasqal-io/starlight-client-mermaid`](https://pasqal-io.github.io/starlight-client-mermaid/)
+(client-side rendering). Add a ` ```mermaid ` fenced block in any doc page; the
+plugin is enabled in `astro.config.mjs`.
 
 ## Adding a page
 

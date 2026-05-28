@@ -8,7 +8,8 @@ This is a minimal quickstart for running CQF Bench against the open-source
 loaded it into a running engine, executed the suite, and produced a report.
 
 If you have not set up prerequisites yet, see [Installation](/cqf-bench/installation/)
-first.
+first. This quickstart uses [HAPI CQF Ruler](/cqf-bench/engines/hapi-cqf-ruler/);
+to benchmark another server, see [Engine guides](/cqf-bench/engines/).
 
 ## 1. Create your local config
 

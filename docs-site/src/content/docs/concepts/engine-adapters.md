@@ -113,4 +113,6 @@ To onboard a new engine with non-standard behavior:
 3. Set the engine's `capabilities` to match what it actually supports.
 
 Start from `generic-cqf` and override only the hooks you need. See
-[Contributing](/cqf-bench/contributing/).
+[Add an engine](/cqf-bench/guides/add-an-engine/) for registering an endpoint and
+[Contributing](/cqf-bench/contributing/#adding-an-engine-adapter) for submitting a
+new adapter.

@@ -76,6 +76,19 @@ CQF Bench distinguishes **conformance** from **capability + performance**:
 This separation keeps performance numbers honest: a server is never credited with
 fast timing for a response that was wrong or unsupported.
 
+## Example use cases
+
+- **Engine selection** — Compare candidate CQF servers on the operations and CQL
+  patterns your program uses before standardizing on one.
+- **Regression tracking** — Re-run the suite on new engine builds; reports are keyed
+  by suite hash and git commit.
+- **Conformance auditing** — Produce a per-operation PASS / UNSUPPORTED / WARNING /
+  FAIL matrix for a server's CQF REST surface.
+- **Capability exploration** — See which CQL constructs an engine evaluates correctly
+  and how cost scales with synthetic data volume.
+- **Vendor-neutral reporting** — Publish numbers others can reproduce from the same
+  suite and generator.
+
 ## What it is not
 
 - It is **not** a CQL engine or a FHIR server. It exercises engines you provide.
@@ -87,4 +100,5 @@ fast timing for a response that was wrong or unsupported.
 
 - [Getting Started](/cqf-bench/getting-started/) — a minimal end-to-end run.
 - [Installation](/cqf-bench/installation/) — prerequisites and setup.
+- [Engine guides](/cqf-bench/engines/) — configure HAPI CQF Ruler or add your own engine.
 - [Core Concepts](/cqf-bench/concepts/) — the full model behind the harness.

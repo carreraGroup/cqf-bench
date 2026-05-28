@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightClientMermaid from '@pasqal-io/starlight-client-mermaid';
 
 /**
  * GitHub Pages project-site settings.
@@ -25,6 +26,8 @@ export default defineConfig({
   base,
   integrations: [
     starlight({
+      plugins: [starlightClientMermaid({})],
+      customCss: ['./src/styles/landing.css'],
       title: 'CQF Bench',
       description:
         'Open benchmark harness for comparing CQF / Clinical Reasoning endpoint behavior and performance across engines.',
@@ -42,12 +45,13 @@ export default defineConfig({
         },
       ],
       editLink: {
-        baseUrl: 'https://github.com/carreraGroup/cqf-bench/edit/main/docs-site/',
+        baseUrl: 'https://github.com/carreraGroup/cqf-bench/edit/master/docs-site/',
       },
       sidebar: [
         {
           label: 'Start Here',
           items: [
+            { label: 'Home', slug: 'index' },
             { label: 'Overview', slug: 'overview' },
             { label: 'Getting Started', slug: 'getting-started' },
             { label: 'Installation', slug: 'installation' },
@@ -67,8 +71,16 @@ export default defineConfig({
           label: 'Guides',
           items: [
             { label: 'Run Your First Benchmark', slug: 'guides/run-your-first-benchmark' },
+            { label: 'Add an Engine', slug: 'guides/add-an-engine' },
             { label: 'Compare Engines', slug: 'guides/compare-engines' },
             { label: 'Publish Results', slug: 'guides/publish-results' },
+          ],
+        },
+        {
+          label: 'Engines',
+          items: [
+            { label: 'Engine guides', slug: 'engines' },
+            { label: 'HAPI CQF Ruler', slug: 'engines/hapi-cqf-ruler' },
           ],
         },
         {
@@ -84,7 +96,7 @@ export default defineConfig({
           label: 'Project',
           items: [
             { label: 'Contributing', slug: 'contributing' },
-            { label: 'Suggested Diagrams', slug: 'diagrams' },
+            { label: 'Diagrams', slug: 'diagrams' },
           ],
         },
       ],

@@ -60,6 +60,10 @@ schemas.
 
 ## Adding an engine adapter
 
+To register an endpoint in config (no code changes), see
+[Add an engine](/cqf-bench/guides/add-an-engine/) and
+[Engine guides](/cqf-bench/engines/).
+
 To onboard an engine with non-standard API behavior:
 
 1. Add an adapter class implementing the hooks (`adapt_query`, `adapt_payload`,

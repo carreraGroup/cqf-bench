@@ -1,18 +1,12 @@
 ---
-title: Suggested Diagrams
-description: Diagram sketches for the CQF Bench workflow, adapter architecture, suite structure, and result comparison — ready to render with Mermaid or redraw as SVG.
+title: Diagrams
+description: Architecture and workflow diagrams for CQF Bench — workflow, adapters, suite structure, and result scoring.
 ---
 
-This page collects diagram sketches that explain CQF Bench visually. Each one is
-provided as a short description plus a [Mermaid](https://mermaid.js.org/) source
-block you can render later or redraw as a static SVG.
-
-:::note[Rendering Mermaid]
-Starlight does not render Mermaid out of the box. To turn the code blocks below
-into diagrams, add a Mermaid integration (for example the `starlight-mermaid`
-plugin, or a `rehype-mermaid` setup) to `docs/astro.config.mjs`. Until then, the
-blocks render as readable source — which is intentional for a first draft.
-:::
+Visual overview of how CQF Bench is structured and how a run flows from suite
+definition to reports. Diagrams render in the browser via
+[Mermaid](https://mermaid.js.org/) (see `docs-site/astro.config.mjs` if you need
+to change styling).
 
 ## 1. CQF Bench workflow
 
@@ -60,16 +54,14 @@ flowchart TB
   CAP -- no --> SKIP[Skip scenario for engine]
   CAP -- yes --> ADP[Adapter]
 
-  subgraph Adapter hooks
+  subgraph hooks [Adapter hooks]
     direction LR
-    AM[adapt_method] --- AP[adapt_path]
-    AP --- AQ[adapt_query]
-    AQ --- APL[adapt_payload]
-    APL --- PFQ[payload_from_query]
+    AM[adapt_method] --> AP[adapt_path] --> AQ[adapt_query]
+    AQ --> APL[adapt_payload] --> PFQ[payload_from_query]
   end
 
-  ADP --> Adapter_hooks
-  Adapter_hooks --> REQ[Concrete HTTP request]
+  ADP --> AM
+  PFQ --> REQ[Concrete HTTP request]
 
   REQ --> G[generic-cqf<br/>Blaze / Firely]
   REQ --> H[hapi-cqf-ruler<br/>GET→POST, instance ops]
@@ -124,11 +116,9 @@ flowchart LR
   MATRIX --> CMP[Side-by-side matrix<br/>across engines]
 ```
 
-## Redrawing as static SVG
+## Editing diagrams
 
-If you prefer committed SVGs over runtime rendering:
-
-1. Render each Mermaid block (e.g. with the Mermaid CLI `mmdc` or the live
-   editor) to `docs/src/assets/diagrams/<name>.svg`.
-2. Reference them from Markdown: `![CQF Bench workflow](../../assets/diagrams/workflow.svg)`.
-3. Keep the Mermaid source on this page as the editable source of truth.
+The Mermaid blocks above are the source of truth. To change a diagram, edit this
+page and run `npm run dev` in `docs-site/` to preview. For static SVG exports
+(e.g. for slides), use the [Mermaid Live Editor](https://mermaid.live/) or the
+[`mmdc` CLI](https://github.com/mermaid-js/mermaid-cli).

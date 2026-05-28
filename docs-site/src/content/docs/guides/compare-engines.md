@@ -7,6 +7,10 @@ The point of CQF Bench is comparison: run the same scenarios, the same data, and
 the same scoring rules across multiple engines, then read the results side by
 side. This guide shows how.
 
+New to engine setup? Start with [Engine guides](/cqf-bench/engines/) or
+[Add an engine](/cqf-bench/guides/add-an-engine/). For HAPI CQF Ruler specifically,
+see [HAPI CQF Ruler](/cqf-bench/engines/hapi-cqf-ruler/).
+
 ## 1. Configure multiple engines
 
 Your engines config (`bench/config/local.engines.yaml`) can declare any number of
