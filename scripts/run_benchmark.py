@@ -1282,6 +1282,30 @@ def _split_json_path(path: str) -> list[str]:
     return tokens
 
 
+def _eval_validation_expression(expression: str, context: dict[str, Any]) -> float:
+    """Evaluate a simple numeric expression using only names from context. Safe subset of Python."""
+    if not expression or not isinstance(context, dict):
+        return 0.0
+    expr = str(expression).strip()
+    if not expr:
+        return 0.0
+    allowed = {k: v for k, v in context.items() if isinstance(v, (int, float))}
+    try:
+        import ast
+        tree = ast.parse(expr, mode="eval")
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name):
+                if node.id not in allowed:
+                    return 0.0
+            if isinstance(node, ast.Call):
+                return 0.0
+        code = compile(tree, "<validation>", "eval")
+        result = eval(code, {"__builtins__": {}}, allowed)
+        return float(result)
+    except Exception:  # noqa: BLE001
+        return 0.0
+
+
 def json_path_select(data: Any, path: str) -> list[Any]:
     if path == "$":
         return [data]
@@ -1317,7 +1341,14 @@ def json_path_select(data: Any, path: str) -> list[Any]:
     return nodes
 
 
-def run_response_validators(raw: str, expected_cfg: dict[str, Any] | None, status: int) -> tuple[bool, bool, list[str]]:
+def run_response_validators(
+    raw: str,
+    expected_cfg: dict[str, Any] | None,
+    status: int,
+    context: dict[str, Any] | None = None,
+) -> tuple[bool, bool, list[str]]:
+    """Run validators from expected_cfg against raw response. context is used for tokenized_numeric_equals (selectivity, scale_factor, etc.).
+    New validator types: value_type_and_equals (path, expected_type, expected_value?, mode?), tokenized_numeric_equals (path, expression, expected_type?, rounding?, tolerance?), define_present (define_name, path?)."""
     if not isinstance(expected_cfg, dict):
         return True, False, []
     when_status_in = expected_cfg.get("when_status_in")
@@ -1339,6 +1370,7 @@ def run_response_validators(raw: str, expected_cfg: dict[str, Any] | None, statu
 
     parsed = _json_or_none(raw)
     failures: list[str] = []
+    validation_ctx = context if isinstance(context, dict) else {}
 
     for v in validators:
         if not isinstance(v, dict):
@@ -1359,6 +1391,30 @@ def run_response_validators(raw: str, expected_cfg: dict[str, Any] | None, statu
                         break
             if not found:
                 failures.append(f"Parameters.parameter name '{wanted}' not found")
+            continue
+
+        if vtype == "define_present":
+            define_name = str(v.get("define_name", v.get("name", "")))
+            path = v.get("path")
+            if isinstance(path, str) and path and parsed is not None:
+                nodes = json_path_select(parsed, path)
+                found = False
+                for node in nodes:
+                    if isinstance(node, dict) and str(node.get("name", "")) == define_name:
+                        found = True
+                        break
+                    if node == define_name:
+                        found = True
+                        break
+            else:
+                found = False
+                if isinstance(parsed, dict) and parsed.get("resourceType") == "Parameters":
+                    for p in parsed.get("parameter", []):
+                        if isinstance(p, dict) and str(p.get("name", "")) == define_name:
+                            found = True
+                            break
+            if not found:
+                failures.append(f"define '{define_name}' not present in output")
             continue
 
         if vtype == "function_result_body_equals":
@@ -1393,7 +1449,90 @@ def run_response_validators(raw: str, expected_cfg: dict[str, Any] | None, statu
         path = v.get("path")
         nodes = json_path_select(parsed, path) if isinstance(path, str) and parsed is not None else []
 
-        if vtype == "exists":
+        if vtype == "value_type_and_equals":
+            expected_type = str(v.get("expected_type", "")).strip()
+            expected_value = v.get("expected_value")
+            mode = str(v.get("mode", "any")).strip().lower()
+            if mode != "all":
+                mode = "any"
+
+            def _check_value_type_node(node: Any) -> bool:
+                if not isinstance(node, dict):
+                    return False
+                if expected_type == "resourceType":
+                    return expected_value is None or str(node.get("resourceType", "")) == str(expected_value)
+                fhir_value_keys = ("valueBoolean", "valueInteger", "valueDecimal", "valueString", "valueDateTime", "valueDate", "valueCanonical")
+                if expected_type and expected_type in fhir_value_keys:
+                    if expected_type not in node:
+                        return False
+                    if expected_value is not None and node[expected_type] != expected_value:
+                        return False
+                    return True
+                if expected_value is not None:
+                    for k in fhir_value_keys:
+                        if k in node and node[k] == expected_value:
+                            return True
+                    return False
+                return True
+
+            if not nodes:
+                failures.append(f"path {path} has no nodes for value_type_and_equals")
+            elif mode == "any":
+                if not any(_check_value_type_node(n) for n in nodes):
+                    failures.append(f"path {path}: no node matches expected_type={expected_type!r} expected_value={expected_value!r}")
+            else:
+                if not all(_check_value_type_node(n) for n in nodes):
+                    failures.append(f"path {path}: not all nodes match expected_type={expected_type!r} expected_value={expected_value!r}")
+        elif vtype == "tokenized_numeric_equals":
+            expression = str(v.get("expression", "")).strip()
+            expected_type_key = str(v.get("expected_type", "valueInteger")).strip()
+            if expected_type_key not in ("valueInteger", "valueDecimal"):
+                expected_type_key = "valueInteger"
+            rounding = str(v.get("rounding", "nearest")).strip().lower()
+            if rounding not in ("floor", "ceil", "nearest"):
+                rounding = "nearest"
+            tolerance = float(v.get("tolerance", 0))
+            computed = _eval_validation_expression(expression, validation_ctx)
+            if rounding == "floor":
+                expected_num = int(computed) if expected_type_key == "valueInteger" else computed
+            elif rounding == "ceil":
+                import math
+                expected_num = int(math.ceil(computed)) if expected_type_key == "valueInteger" else math.ceil(computed)
+            else:
+                expected_num = round(computed) if expected_type_key == "valueInteger" else round(computed, 10)
+            if not path:
+                failures.append("tokenized_numeric_equals requires path")
+            elif not nodes:
+                failures.append(f"path {path} has no nodes for tokenized_numeric_equals")
+            else:
+                found = False
+                for node in nodes:
+                    if not isinstance(node, dict) or expected_type_key not in node:
+                        continue
+                    actual = node[expected_type_key]
+                    if expected_type_key == "valueInteger":
+                        try:
+                            a = int(actual)
+                            if tolerance == 0:
+                                if a == int(expected_num):
+                                    found = True
+                                    break
+                            elif abs(a - expected_num) <= tolerance:
+                                found = True
+                                break
+                        except (TypeError, ValueError):
+                            continue
+                    else:
+                        try:
+                            a = float(actual)
+                            if abs(a - float(expected_num)) <= tolerance:
+                                found = True
+                                break
+                        except (TypeError, ValueError):
+                            continue
+                if not found:
+                    failures.append(f"path {path}: no node has {expected_type_key}={expected_num} (expression={expression!r} computed={expected_num})")
+        elif vtype == "exists":
             if not nodes:
                 failures.append(f"path does not exist: {path}")
         elif vtype == "min_items":
@@ -2183,6 +2322,12 @@ def run_scenario(
     strict_mode: bool = False,
     suite_defaults: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    validation_context: dict[str, Any] = {
+        "selectivity": selectivity,
+        "scale_factor": len(patient_ids),
+        "requests_per_patient": requests_per_patient,
+        "repetitions": repetitions,
+    }
     base_method = scenario["method"]
     policy = resolve_http_policy_for_spec(scenario, strict_mode, suite_defaults=suite_defaults)
     headers = expand_headers(engine.get("headers", {}))
@@ -2412,7 +2557,9 @@ def run_scenario(
                     continue
 
                 http_pass += 1
-                valid, eligible, validation_failures = run_response_validators(raw, scenario.get("_expected_config"), status)
+                valid, eligible, validation_failures = run_response_validators(
+                    raw, scenario.get("_expected_config"), status, validation_context
+                )
                 if eligible:
                     validate_eligible += 1
                     if valid:

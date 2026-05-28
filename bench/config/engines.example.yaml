@@ -43,6 +43,26 @@ engines:
     env:
       hapi.fhir.cql_enabled: 'true'
     health_path: /fhir/metadata
+- name: blaze-local
+  adapter: generic-cqf
+  base_url: http://localhost:8082
+  cqf_base_path: /fhir
+  data_base_path: /fhir
+  fhir_base_path: /fhir
+  headers: {}
+  capabilities:
+  - resident_data_load
+  - resident_execute
+  - system_cql
+  - inline_bundle_execute
+  docker:
+    enabled: true
+    image: samply/blaze:latest
+    container_name: blaze-cqf-bench
+    host_port: 8082
+    container_port: 8080
+    env: {}
+    health_path: /fhir/metadata
 - name: firely-runtime
   adapter: generic-cqf
   base_url: https://example-firely-host
