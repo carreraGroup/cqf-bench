@@ -75,6 +75,7 @@ export default defineConfig({
           items: [
             { label: 'Engine guides', slug: 'engines' },
             { label: 'HAPI CQF Ruler', slug: 'engines/hapi-cqf-ruler' },
+            { label: 'Mercury', slug: 'engines/mercury' },
           ],
         },
         {

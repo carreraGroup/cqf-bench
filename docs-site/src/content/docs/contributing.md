@@ -20,14 +20,19 @@ adapters, scoring improvements, and documentation fixes are all welcome.
 4. These local files are gitignored and where your real values live:
    - `bench/config/local.engines.yaml`
    - `docker-compose.override.yml`
-5. Validate scripts and scenarios:
+5. Install and run the same checks as CI:
    ```bash
+   python -m pip install -e .
    python -m compileall scripts
    python scripts/validate_scenarios.py --suite bench/scenarios/tpcqf/suite.yaml
+   python -m unittest discover -s tests -v
    ```
+6. If you change the docs site: `cd docs-site && npm ci && npm run build`
 
-CI runs the same compile + validate steps on every push and pull request, so run
-them locally before opening a PR.
+CI runs on every push and pull request (`python` and `docs` jobs). Merges to
+`master` should require those checks — see
+[BRANCH_PROTECTION.md](https://github.com/carreraGroup/cqf-bench/blob/master/.github/BRANCH_PROTECTION.md)
+in the repository.
 
 ## Adding a scenario
 
@@ -92,14 +97,16 @@ Last Audit, Notes) and keep IDs aligned with the suite.
 
 ## Submitting changes
 
+- Open a **pull request** against `master` (direct pushes to `master` should be
+  disabled via branch protection).
 - Open an issue to discuss substantial additions (new operation families, new
   adapters) before large PRs.
 - Keep PRs focused; one scenario set or one adapter per PR is easiest to review.
-- Ensure `compileall` and `validate_scenarios.py` pass.
+- Ensure CI passes: **`python`** and **`docs`** workflows.
 - Follow the repository's
-  [Code of Conduct](https://github.com/carreraGroup/cqf-bench/blob/main/CODE_OF_CONDUCT.md)
-  and review [SECURITY.md](https://github.com/carreraGroup/cqf-bench/blob/main/SECURITY.md)
-  for reporting vulnerabilities.
+  [Code of Conduct](https://github.com/carreraGroup/cqf-bench/blob/master/CODE_OF_CONDUCT.md)
+  and [SECURITY.md](https://github.com/carreraGroup/cqf-bench/blob/master/SECURITY.md)
+  (email the maintainer for vulnerabilities).
 
 ## Editing these docs
 
@@ -113,8 +120,8 @@ npm run dev
 ```
 
 Add a page under `docs-site/src/content/docs/`, register it in the `sidebar` array in
-`docs-site/astro.config.mjs`, and open a PR. Pushes to `main` deploy automatically to
-GitHub Pages via [`.github/workflows/deploy-docs-site.yml`](https://github.com/carreraGroup/cqf-bench/blob/main/.github/workflows/deploy-docs-site.yml).
+`docs-site/astro.config.mjs`, and open a PR. Pushes to `master` deploy automatically to
+GitHub Pages via [`.github/workflows/deploy-docs-site.yml`](https://github.com/carreraGroup/cqf-bench/blob/master/.github/workflows/deploy-docs-site.yml).
 
 Code-level notes for maintainers stay in the repository root and [`docs/`](../docs/)
 when present — not in this Astro project.

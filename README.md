@@ -67,6 +67,13 @@ CAP timing is only counted for correctness-valid successful responses.
 - LinuxForHealth FHIR
 - Blaze FHIR
 
+## Maintainers
+
+- **Angelo Kastroulis** ([@angelok1](https://github.com/angelok1)) —
+  [akastroulis@carrera.io](mailto:akastroulis@carrera.io)
+
+For security issues, see [SECURITY.md](SECURITY.md) (email the maintainer).
+
 ## Additional Documentation
 
 - **[Documentation site](https://carreraGroup.github.io/cqf-bench/)** — guides, concepts, and reference (source in [`docs-site/`](docs-site/))
@@ -74,6 +81,7 @@ CAP timing is only counted for correctness-valid successful responses.
 - [catalog.md](catalog.md)
 - [BENCHMARK_TESTS.md](BENCHMARK_TESTS.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md)
+- [Branch protection setup](.github/BRANCH_PROTECTION.md) (maintainers: enforce PR + CI)
 - [SECURITY.md](SECURITY.md)
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 

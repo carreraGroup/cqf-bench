@@ -29,7 +29,8 @@ is officially representing the community.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the project maintainers.
+reported to the project maintainer at
+[akastroulis@carrera.io](mailto:akastroulis@carrera.io).
 
 ## Attribution
 
