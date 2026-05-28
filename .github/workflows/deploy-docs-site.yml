@@ -32,7 +32,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: docs-site/.nvmrc
           cache: npm
           cache-dependency-path: docs-site/package-lock.json
 

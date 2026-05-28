@@ -17,8 +17,11 @@ The Astro project must not live under `docs/` so internal notes and the publishe
 
 ## Local development
 
+Requires **Node.js ≥ 22.12** (Astro 6). With [nvm](https://github.com/nvm-sh/nvm):
+
 ```bash
 cd docs-site
+nvm use    # reads .nvmrc
 npm install
 npm run dev
 ```
