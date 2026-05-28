@@ -1,12 +1,13 @@
 name: Deploy documentation site
 
-# Builds the Astro Starlight site in docs-site/ and publishes to GitHub Pages.
-# In the repo: Settings → Pages → Build and deployment → Source = GitHub Actions.
+# Publishes docs-site/ to Carrera Group GitHub Pages:
+# https://carreraGroup.github.io/cqf-bench/
+#
+# One-time setup: Settings → Pages → Build and deployment → Source → GitHub Actions
 
 on:
   push:
-    # Use your repository default branch (main or master).
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

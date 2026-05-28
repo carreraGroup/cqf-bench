@@ -4,21 +4,13 @@ import starlight from '@astrojs/starlight';
 import starlightClientMermaid from '@pasqal-io/starlight-client-mermaid';
 
 /**
- * GitHub Pages project-site settings.
+ * Carrera Group GitHub Pages (project site).
+ * Published at: https://carreraGroup.github.io/cqf-bench/
  *
- * Published URL: https://carreragroup.github.io/cqf-bench/
- *
- * To change the base path (repo rename) or move to a custom domain:
- * - Set `site` to your canonical origin (e.g. https://docs.example.org).
- * - Set `base` to `/` for a root site, or `/<repo-name>/` for a project site.
- * - Update internal doc links that use the `/cqf-bench/` prefix.
- *
- * Optional overrides for CI or local experiments:
- * - ASTRO_SITE  (default: https://carreragroup.github.io)
- * - ASTRO_BASE  (default: /cqf-bench/)
+ * Change these two values if the org, repo name, or domain changes.
  */
-const site = process.env.ASTRO_SITE ?? 'https://carreragroup.github.io';
-const base = process.env.ASTRO_BASE ?? '/cqf-bench/';
+const site = 'https://carreraGroup.github.io';
+const base = '/cqf-bench/';
 
 export default defineConfig({
   output: 'static',

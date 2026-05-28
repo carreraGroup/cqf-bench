@@ -69,7 +69,7 @@ CAP timing is only counted for correctness-valid successful responses.
 
 ## Additional Documentation
 
-- **[Documentation site](https://carreragroup.github.io/cqf-bench/)** — guides, concepts, and reference (source in [`docs-site/`](docs-site/))
+- **[Documentation site](https://carreraGroup.github.io/cqf-bench/)** — guides, concepts, and reference (source in [`docs-site/`](docs-site/))
 - [GETTING_STARTED.md](GETTING_STARTED.md)
 - [catalog.md](catalog.md)
 - [BENCHMARK_TESTS.md](BENCHMARK_TESTS.md)
