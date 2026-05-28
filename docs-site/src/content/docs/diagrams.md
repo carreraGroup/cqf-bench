@@ -5,8 +5,8 @@ description: Architecture and workflow diagrams for CQF Bench — workflow, adap
 
 Visual overview of how CQF Bench is structured and how a run flows from suite
 definition to reports. Diagrams render in the browser via
-[Mermaid](https://mermaid.js.org/) (see `docs-site/astro.config.mjs` if you need
-to change styling).
+[Mermaid](https://mermaid.js.org/) using the docs site's local markdown content
+override.
 
 ## 1. CQF Bench workflow
 
@@ -122,3 +122,7 @@ The Mermaid blocks above are the source of truth. To change a diagram, edit this
 page and run `npm run dev` in `docs-site/` to preview. For static SVG exports
 (e.g. for slides), use the [Mermaid Live Editor](https://mermaid.live/) or the
 [`mmdc` CLI](https://github.com/mermaid-js/mermaid-cli).
+
+Mermaid rendering is implemented in
+`docs-site/src/components/MarkdownContent.astro` and applies to fenced code
+blocks with language `mermaid`.

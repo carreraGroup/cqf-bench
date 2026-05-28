@@ -1,0 +1,34 @@
+diff --git a/node_modules/@pasqal-io/starlight-client-mermaid/index.ts b/node_modules/@pasqal-io/starlight-client-mermaid/index.ts
+index 8bd85d8..7ebf95e 100644
+--- a/node_modules/@pasqal-io/starlight-client-mermaid/index.ts
++++ b/node_modules/@pasqal-io/starlight-client-mermaid/index.ts
+@@ -2,6 +2,7 @@ import type {
+   StarlightPlugin,
+   StarlightUserConfig,
+ } from "@astrojs/starlight/types";
++import { unified } from "@astrojs/markdown-remark";
+ import type { AstroIntegrationLogger } from "astro";
+ import { remarkTagMermaid } from "./scripts/remarkTagMermaid";
+ import { vitePluginStarlightClientMermaidConfig } from "./libs/vite";
+@@ -56,13 +57,17 @@ export default function starlightClientMermaid(
+           name: `astro_${PLUGIN_NAME}`,
+           hooks: {
+             "astro:config:setup": ({ updateConfig }) => {
++              const existingRemarkPlugins = astroConfig.markdown?.remarkPlugins ?? [];
+               updateConfig({
+                 markdown: {
+                   ...astroConfig.markdown,
+-                  remarkPlugins: [
+-                    ...(astroConfig.markdown.remarkPlugins ?? []),
+-                    [remarkTagMermaid, { className, loadingPlaceholder }],
+-                  ],
++                  processor: unified({
++                    ...astroConfig.markdown,
++                    remarkPlugins: [
++                      ...existingRemarkPlugins,
++                      [remarkTagMermaid, { className, loadingPlaceholder }],
++                    ],
++                  }),
+                 },
+                 vite: {
+                   plugins: [vitePluginStarlightClientMermaidConfig(options)],

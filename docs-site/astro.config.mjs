@@ -1,7 +1,6 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
-import starlightClientMermaid from '@pasqal-io/starlight-client-mermaid';
 
 /**
  * Carrera Group GitHub Pages (project site).
@@ -18,8 +17,10 @@ export default defineConfig({
   base,
   integrations: [
     starlight({
-      plugins: [starlightClientMermaid({})],
       customCss: ['./src/styles/landing.css'],
+      components: {
+        MarkdownContent: './src/components/MarkdownContent.astro',
+      },
       title: 'CQF Bench',
       description:
         'Open benchmark harness for comparing CQF / Clinical Reasoning endpoint behavior and performance across engines.',

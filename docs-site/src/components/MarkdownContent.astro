@@ -1,0 +1,47 @@
+---
+import Default from "@astrojs/starlight/components/MarkdownContent.astro";
+---
+
+<Default>
+  <slot />
+  <script>
+    async function renderMermaidBlocks() {
+      const blocks = Array.from(document.querySelectorAll("pre code.language-mermaid"));
+      if (blocks.length === 0) return;
+
+      const { default: mermaid } = await import("mermaid");
+      const dark = document.documentElement.getAttribute("data-theme") === "dark";
+      mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "default" });
+
+      for (const code of blocks) {
+        const pre = code.closest("pre");
+        if (!pre || pre.dataset.mermaidRendered === "true") continue;
+        const source = code.textContent ?? "";
+        const id = `mermaid-${Math.random().toString(36).slice(2)}`;
+        const host = document.createElement("div");
+        host.className = "mermaid-diagram";
+
+        try {
+          const result = await mermaid.render(id, source);
+          host.innerHTML = result.svg;
+          pre.replaceWith(host);
+        } catch (err) {
+          pre.dataset.mermaidRendered = "true";
+          console.error("Mermaid render failed", err);
+        }
+      }
+    }
+
+    function scheduleRender() {
+      void renderMermaidBlocks();
+    }
+
+    scheduleRender();
+    document.addEventListener("astro:page-load", scheduleRender);
+    const observer = new MutationObserver(scheduleRender);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+  </script>
+</Default>
