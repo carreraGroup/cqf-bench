@@ -4,4 +4,4 @@ using FHIR version '4.0.1'
 context Patient
 define "SortedConditionIds":
   [Condition] C
-    sort by resourceType
+    sort by id.value

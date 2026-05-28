@@ -15,8 +15,9 @@ what each one is intended to test. Scenarios fall into two intents:
   generated data, to see whether the engine evaluates it *correctly* and *how
   hard it has to work* as data scales. Timed only on correct responses.
 
-For the scoring rules behind these, see [Test Cases](/cqf-bench/concepts/test-cases/)
-and [Results](/cqf-bench/concepts/results/). The editable source of truth for
+For the scoring rules behind these, see [Test Cases](/cqf-bench/concepts/test-cases/),
+[Golden Validation](/cqf-bench/concepts/golden-validation/), and
+[Results](/cqf-bench/concepts/results/). The editable source of truth for
 intent and audit status is `catalog.md` in the repository root.
 
 ## Reading this catalog
@@ -34,7 +35,12 @@ intent and audit status is `catalog.md` in the repository root.
 - **Fixtures.** Data is generated from each scenario's `match.fsh` /
   `variations.fsh` templates and `mutator.yaml`, producing `Condition` resources
   (matching and non-matching) plus linked `Observation` resources and a standard
-  `Patient` and `ValueSet`.
+  `Patient` and `ValueSet`. A few scenarios add a **local `mutator.yaml`** or
+  **`fixed_templates`** so the data matches what the CQL is meant to stress.
+- **Golden validation.** Each `CAP###` row asserts the **expected answer** in
+  `expected.yaml` (counts, booleans, list length, sort order). HTTP `200` with a
+  wrong answer is **FAIL** / incorrect result — not timed. See
+  [Golden Validation](/cqf-bench/concepts/golden-validation/).
 
 ---
 
@@ -46,6 +52,10 @@ instance-level (`/Resource/{id}/$op`), via `GET` and/or `POST`. A `PASS` means t
 endpoint is reachable and returns a conformant status; `422` is reported as
 `UNSUPPORTED` (the engine doesn't implement that operation), other `4xx` as
 `WARNING`, and `5xx`/timeout as `FAIL`.
+
+**Correctness:** CONF scenarios do not use golden result validators — they only
+check HTTP class. Where `$evaluate` is called, CQL is the trivial
+`ConformanceTrue` define so the probe stays wire-focused.
 
 ### System operations
 
@@ -129,6 +139,10 @@ Each scenario below isolates one CQL construct. The point is not breadth of CQL
 in a single query but a clean, comparable probe: change one thing, measure
 correctness and cost. Each runs as `-P` (preload) and `-I` (inline).
 
+Unless noted, the default mutator generates **40** `Condition` rows per patient
+(**8** match / **32** nomatch at selectivity `0.2`), with **final** observations
+on match rows and **cancelled** observations on nomatch rows.
+
 ### CAP001 — Count retrieve all of one resource
 
 ```cql
@@ -142,6 +156,9 @@ cost — the engine must materialize and model-map every `Condition`. Latency he
 tracks raw retrieve-and-count throughput as data scales, with no filtering to
 amortize. Use it as the baseline the filtered scenarios are compared against.
 
+**Golden validation:** `tokenized_numeric_equals` with expression `total_count` →
+**40** per patient (`valueInteger` on the count parameter).
+
 ### CAP002 — Retrieve based on valueset
 
 ```cql
@@ -154,6 +171,9 @@ inside the retrieve (`[Condition: "…ValueSet"]`). **Why it's hard:** the engin
 must resolve and expand the valueset and apply code membership during retrieval.
 It probes terminology resolution and whether the engine can push the filter into
 the retrieve rather than fetching everything first.
+
+**Golden validation:** `round(total_count * selectivity)` → **8** per patient
+(same expected count as CAP003).
 
 ### CAP003 — Valueset retrieve plus valueset predicate
 
@@ -169,6 +189,10 @@ filters in memory, while an optimizing engine recognizes the predicate is
 equivalent to a filtered retrieve. **Comparing CAP002 vs. CAP003** on the same
 engine is the interesting signal.
 
+**Golden validation:** same as CAP002 — **8** via `round(total_count * selectivity)`.
+Comparing CAP002 vs. CAP003 latency on the same engine is only meaningful when
+both pass this check.
+
 ### CAP004 — Resource return projection
 
 ```cql
@@ -180,6 +204,9 @@ define "ReturnConditionIds":
 than aggregating. **Why it's hard:** unlike the `Count` scenarios, the engine must
 build and serialize a full result list. It stresses result-set materialization
 and response serialization, and shows how response size affects latency.
+
+**Golden validation:** `min_items` on the `ReturnConditionIds` parameter's `part`
+array — at least **40** elements (one id per condition, unfiltered retrieve).
 
 ### CAP005 — Tuple populated from another define
 
@@ -200,6 +227,9 @@ hard:** it exercises the define dependency graph (does the engine evaluate and
 reuse `BaseConditions` cleanly?) together with structured-value construction and
 null-safe accessors.
 
+**Golden validation:** `round(total_count * selectivity)` → **8** (only
+valueset-matching conditions from `BaseConditions`).
+
 ### CAP006 — Retrieve with `with`-clause join
 
 ```cql
@@ -217,6 +247,13 @@ and code equivalence (`~`). **Why it's hard:** without optimization the cost is
 roughly |Condition| × |Observation| per patient. It probes join evaluation
 strategy and code-equivalence semantics, and is where engines with naive nested
 iteration show their cost most clearly.
+
+**Fixture design:** scenario-local `mutator.yaml` links **only** `ConditionMatch`
+to `ObservationFinal`. Nomatch conditions have **no** related observation, so the
+semi-join cannot spuriously match via a cancelled obs on a nomatch code.
+
+**Golden validation:** `round(total_count * selectivity)` → **8** (only the eight
+match rows satisfy `with [Observation] … and O.code ~ C.code`).
 
 ### CAP007 — Retrieve with `without`-clause join
 
@@ -236,18 +273,32 @@ define "CountWithoutJoin":
 the engine must prove absence across the correlated set rather than stop at the
 first match. Comparing CAP006 vs. CAP007 isolates semi-join vs. anti-join cost.
 
+**Fixture design:** default mutator — nomatch rows include a **cancelled**
+observation correlated on code, so they are excluded by `without … status =
+'cancelled'`.
+
+**Golden validation:** `round(total_count * selectivity)` → **8** (conditions with
+no matching cancelled observation).
+
 ### CAP008 — Query with sort
 
 ```cql
 define "SortedConditionIds":
   [Condition] C
-    sort by resourceType
+    sort by id.value
 ```
 
-**Tests:** a retrieve followed by `sort by`. **Why it's hard:** it exercises the
+**Tests:** a retrieve followed by `sort by` on a discriminating key (`id.value`),
+not a field that is identical on every row. **Why it's hard:** it exercises the
 engine's sort path and stable-ordering behavior over a result list — separate
 machinery from filtering and aggregation, and a common source of cost on large
 result sets.
+
+**Golden validation:**
+
+- `min_items` on `SortedConditionIds` `part` — **40** ids.
+- `response_regex` on the raw body — match ids (`…-m-…`) appear before nomatch ids
+  (`…-n-…`) in serialized output, proving sort order is not arbitrary.
 
 ### CAP009 — Complex predicate with function calls
 
@@ -269,6 +320,9 @@ null checks, string/temporal handling (`ToString`, `StartsWith`), a nested
 stresses per-row function-call overhead and breadth of the engine's function
 library all at once — the most computationally demanding predicate in the suite.
 
+**Golden validation:** `round(total_count * selectivity)` → **8** at default
+selectivity `0.2`.
+
 ### CAP010 — Many returned results with `exists`
 
 ```cql
@@ -281,6 +335,13 @@ efficient behavior is to short-circuit at the first match; a naive engine
 materializes the whole filtered set before answering. With many matches present,
 this scenario distinguishes engines that short-circuit `exists` from those that
 don't.
+
+**Selectivity:** `selectivity: 0.5` on `scenario.yaml` (overrides the suite
+default `0.2`) so **half** of generated conditions match the valueset — a denser
+positive set for `exists` without changing the CQL.
+
+**Golden validation:** `value_type_and_equals` — `valueBoolean: true` on the
+`exists` result (any matching parameter node).
 
 ### CAP011 — `let` expression
 
@@ -297,6 +358,13 @@ define "LetCount":
 count. **Why it's hard:** it exercises query-scoped variable binding and
 evaluation order — a correctness probe for `let` handling more than a heavy
 performance load.
+
+**Fixture design:** `fixed_templates` adds **two** extra `ConditionMissingId`
+instances (no `id` field) on top of the usual 40 generated conditions.
+
+**Golden validation:** `tokenized_numeric_equals` with expression
+`total_count - null_id_count` → **38** per patient (`null_id_count` is **2** from
+the harness context).
 
 ---
 

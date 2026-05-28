@@ -55,6 +55,7 @@ export default defineConfig({
             { label: 'Core Concepts', slug: 'concepts' },
             { label: 'Benchmark Suites', slug: 'concepts/benchmark-suites' },
             { label: 'Test Cases', slug: 'concepts/test-cases' },
+            { label: 'Golden Validation', slug: 'concepts/golden-validation' },
             { label: 'Engine Adapters', slug: 'concepts/engine-adapters' },
             { label: 'Results', slug: 'concepts/results' },
           ],

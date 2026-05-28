@@ -14,6 +14,9 @@ linked_templates:
   - ObservationFinal
   ConditionNoMatch:
   - ObservationCancelled
+fixed_templates:
+- template: ConditionMissingId
+  count: 2
 mutations:
 - template: ConditionMatch
   fields:

@@ -31,6 +31,13 @@ FSH, no mutator.
 
 **Timing:** excluded from performance metrics entirely.
 
+**CQL and golden validation:** CONF scenarios use a trivial expression
+(`define "ConformanceTrue": true`) to exercise the `$evaluate` path where
+applicable. They do **not** assert clinical or numeric correctness — only that the
+route responds with an expected HTTP class. See
+[Golden Validation](/cqf-bench/concepts/golden-validation/) for what “correct
+answer” checking means on capability rows.
+
 Example `scenario.yaml`:
 
 ```yaml
@@ -77,12 +84,14 @@ the fixture set `match.fsh`, `variations.fsh`, `mutator.yaml`.
 
 **Scoring:**
 
-- `PASS` — expected HTTP outcome **and** all correctness validators pass.
+- `PASS` — expected HTTP outcome **and** all **golden validators** in
+  `expected.yaml` pass (see [Golden Validation](/cqf-bench/concepts/golden-validation/)).
 - `FAIL` — error status, an unsupported status for that scenario, or a
-  correctness mismatch.
+  correctness mismatch (wrong count, boolean, list length, etc., even when HTTP is
+  `200`).
 
 **Timing:** recorded **only** for PASS requests. Failed requests are excluded from
-latency percentiles.
+latency percentiles. A fast wrong answer never receives a latency number.
 
 Example `scenario.yaml` (preload variant):
 
@@ -134,34 +143,54 @@ evaluate via `cql_entrypoint`. For `Library/$evaluate` scenarios, the harness
 wires the library reference and subject into the query automatically and submits
 the CQL as a `Library` resource during the load phase.
 
-## Correctness validators
+## Golden validation (`expected.yaml`)
 
-Correctness is asserted in `expected.yaml`. Validators only run when the response
-status is in `when_status_in`. Example:
+Capability scenarios use **golden validation**: the harness compares the
+engine's `$evaluate` result to an expected answer derived from the scenario's data
+generator settings (`total_count`, `selectivity`, and any scenario-specific mutator
+overlays).
+
+Validators run only when the response status is in `when_status_in` (typically
+`[200]`). Example for an unfiltered count scenario:
 
 ```yaml
 when_status_in: [200]
 validators:
   - type: not_operation_outcome_error
-  - type: min_items
+  - type: tokenized_numeric_equals
     path: $.parameter[*]
-    min: 1
+    expression: total_count
+    expected_type: valueInteger
+    rounding: nearest
 ```
 
-Validator types include (among others):
+Here `total_count` comes from `mutator.yaml` (default **40** per patient). An
+engine that returns `200` with `valueInteger: 7` fails as **incorrect result**.
 
-| Type | Checks |
+Expression names available in `tokenized_numeric_equals` include `total_count`,
+`selectivity`, `match_count`, `nomatch_count`, and `null_id_count` (when the mutator
+defines `fixed_templates`). The harness also allows `round(total_count * selectivity)`
+for filtered counts.
+
+Validator types used across the CAP catalog:
+
+| Type | Role |
 | --- | --- |
-| `not_operation_outcome_error` | Response has no error/fatal `OperationOutcome` and no "evaluation error". |
-| `parameters_has_name` | A `Parameters.parameter` with the given `name` exists. |
-| `define_present` | A named define is present in the output. |
-| `min_items` | A JSON path selects at least `min` nodes. |
-| `value_type_and_equals` | A node matches an expected FHIR value type (and optional value). |
-| `function_result_body_equals` | A named result parameter's body equals the expected body. |
-| `tokenized_numeric_equals` | A numeric result equals an expression over run context (e.g. selectivity × scale). |
+| `not_operation_outcome_error` | No fatal `OperationOutcome` or evaluation-error parameter. |
+| `tokenized_numeric_equals` | Integer results (`Count`, etc.) match a context expression. |
+| `value_type_and_equals` | Booleans, strings, and other typed values (e.g. `exists` → `true`). |
+| `min_items` | List results expose at least `min` elements (e.g. `return` projections). |
+| `response_regex` | Serialized body matches a pattern (e.g. sort order). |
+| `parameters_has_name` | A named `Parameters.parameter` is present. |
+| `define_present` | A named define appears in the output. |
+| `function_result_body_equals` | A result parameter body matches an expected structure. |
 
-See the [Configuration Reference](/cqf-bench/reference/configuration/) for the
-full validator catalog and `expected.yaml` schema.
+Per-scenario golden expectations (fixture overlays, equivalence pairs, list paths)
+are documented in the [Scenario Catalog](/cqf-bench/reference/scenario-catalog/).
+
+See [Golden Validation](/cqf-bench/concepts/golden-validation/) for the full model
+and [Configuration Reference](/cqf-bench/reference/configuration/) for the
+`expected.yaml` schema.
 
 ## Data generation (Type 2 only)
 
@@ -171,12 +200,14 @@ mutator:
 - `match.fsh` — the canonical "matching" fixtures.
 - `variations.fsh` — non-matching / variant fixtures.
 - `mutator.yaml` — the selectivity mix, per-template mutations, linked resources,
-  and uniqueness constraints, all driven by a stable per-patient seed.
+  optional `fixed_templates`, and uniqueness constraints, all driven by a stable
+  per-patient seed.
 
-This makes the same scale produce the same data on every run, so result counts —
-and therefore correctness assertions — are reproducible. See
-[Configuration Reference](/cqf-bench/reference/configuration/) for the mutator
-schema.
+This makes the same scale produce the same data on every run, so **golden answers**
+are reproducible. Scenario-specific mutator files (for example CAP006 semi-join or
+CAP011 `let`) adjust linked resources or add extra templates without changing the
+CQL. See [Configuration Reference](/cqf-bench/reference/configuration/) for the
+mutator schema.
 
 ## Skipping vs. failing
 

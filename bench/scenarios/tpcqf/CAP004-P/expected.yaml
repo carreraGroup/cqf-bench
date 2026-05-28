@@ -3,5 +3,5 @@ when_status_in:
 validators:
 - type: not_operation_outcome_error
 - type: min_items
-  path: $.parameter[*]
-  min: 1
+  path: $.parameter[?(@.name=='ReturnConditionIds')].part[*]
+  min: 40

@@ -27,8 +27,8 @@ Step-by-step setup for engines we document explicitly:
 
 | Engine | Guide | Adapter | Notes |
 | --- | --- | --- | --- |
-| **HAPI CQF Ruler** | [HAPI CQF Ruler](/cqf-bench/engines/hapi-cqf-ruler/) | `hapi-cqf-ruler` | Open-source Docker image; recommended for first runs and release benchmarks. |
-| **Mercury** | _Coming soon_ | `mercury-cqf` | Entry exists in `engines.example.yaml`; requires a locally built image. Dedicated doc page planned. |
+| **HAPI CQF Ruler** | [HAPI CQF Ruler](/cqf-bench/engines/hapi-cqf-ruler/) | `hapi-cqf-ruler` | Open-source Docker image; includes an engine-specific observed-behavior section for known local benchmark caveats. |
+| **Mercury** | [Mercury](/cqf-bench/engines/mercury/) | `mercury-cqf` | Local image workflow with adapter-specific request shaping and engine-specific observed behavior notes. |
 | Blaze, Firely, Smile CDR, others | [Add an engine](/cqf-bench/guides/add-an-engine/) | `generic-cqf` or product adapter | Template entries in `engines.example.yaml`; configure your endpoint and capabilities. |
 
 ## Bring your own engine

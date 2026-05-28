@@ -3,5 +3,7 @@ when_status_in:
 validators:
 - type: not_operation_outcome_error
 - type: min_items
-  path: $.parameter[*]
-  min: 1
+  path: $.parameter[?(@.name=='SortedConditionIds')].part[*]
+  min: 40
+- type: response_regex
+  pattern: cond-[A-Za-z0-9]+-m-0.*cond-[A-Za-z0-9]+-n-0

@@ -144,6 +144,28 @@ results, and record the digest in your results bundle
 Port conflict with another template engine? Default ports: Mercury `8080`, HAPI
 `8081`, Blaze `8082` — only run simultaneous containers if each port is free.
 
+## Observed behavior (May 28, 2026)
+
+These notes are intentionally engine-specific and should be read as
+implementation observations, not framework rules.
+
+- In full `TPCQF` runs, HAPI often returns HTTP `200` for `CAP` scenarios but
+  still fails correctness validation (wrong result content/shape). This is
+  scored as `FAIL` by design.
+- `CAP002` and `CAP003` track together (same pass/fail pattern) in recent runs,
+  which is expected when they exercise the same value set semantics over the
+  same data.
+- During some local runs, the container showed startup/restart instability
+  (`connection reset by peer`) around benchmark execution windows. Treat those
+  runs as transport-invalid and re-run after health stabilizes.
+
+For reproducible comparisons, record:
+
+1. exact suite/run mode (`full` vs `load`/`execute`),
+2. scale/concurrency/timeout,
+3. image tag and digest,
+4. report JSON artifacts.
+
 ## Remote HAPI / non-Docker
 
 To benchmark a Ruler instance you do not start via `manage_engines.py`:

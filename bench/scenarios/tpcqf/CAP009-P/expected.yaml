@@ -2,6 +2,8 @@ when_status_in:
 - 200
 validators:
 - type: not_operation_outcome_error
-- type: min_items
+- type: tokenized_numeric_equals
   path: $.parameter[*]
-  min: 1
+  expression: round(total_count * selectivity)
+  expected_type: valueInteger
+  rounding: nearest

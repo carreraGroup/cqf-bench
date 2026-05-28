@@ -14,6 +14,8 @@ Audit status vocabulary: `Not Audited`, `Pass`, `Needs Work`, `Deprecated`.
 
 Purpose: strict endpoint/verb conformance checks for CQF IG operation families. Untimed red/green checks based on expected HTTP outcomes.
 
+**Scope (wire only):** CONF scenarios use trivial CQL (`ConformanceTrue`) and do **not** validate evaluation results. Audit status here means route/verb HTTP policy review, not clinical correctness. See `docs/TPCQF_GOLDEN_VALIDATION.md`.
+
 | ID | Name | Endpoint | Verb | Intent | Audit Status | Last Audit | Notes |
 |---|---|---|---|---|---|---|---|
 | CONF001 | GET /metadata conformance | `/metadata` | `GET` | Verify endpoint/verb is reachable and returns a CQF-conformant status code. | Audited | 2026-03-11 |  |
@@ -61,30 +63,32 @@ Purpose: strict endpoint/verb conformance checks for CQF IG operation families. 
 
 Purpose: data-backed CQL capability and performance checks. Timed only on PASS (expected HTTP + correctness).
 
+**Golden validation:** Each CAP scenario asserts expected results via `expected.yaml` (see `docs/TPCQF_GOLDEN_VALIDATION.md`). Per-patient formulas use `total_count`, `selectivity`, and scenario-specific mutator overlays (CAP006 semi-join, CAP011 null ids).
+
 | ID | Variant | Name | Intent | Timed? | Scenario Dir | Audit Status | Last Audit | Notes |
 |---|---|---|---|---|---|---|---|---|
-| CAP001-P | Preload | Count retrieve all of one resource (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP001-P/` | Audited | 2026-03-11 |  |
-| CAP001-I | Inline | Count retrieve all of one resource (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP001-I/` | Audited | 2026-03-11 |  |
-| CAP002-P | Preload | Retrieve based on valueset (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP002-P/` | Audited | 2026-03-11 |  |
-| CAP002-I | Inline | Retrieve based on valueset (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP002-I/` | Audited | 2026-03-11 |  |
-| CAP003-P | Preload | Valueset retrieve plus valueset predicate (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP003-P/` | Audited | 2026-03-11 |  |
-| CAP003-I | Inline | Valueset retrieve plus valueset predicate (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP003-I/` | Audited | 2026-03-11 |  |
-| CAP004-P | Preload | Resource return projection (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP004-P/` | Audited | 2026-03-11 |  |
-| CAP004-I | Inline | Resource return projection (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP004-I/` | Audited | 2026-03-11 |  |
-| CAP005-P | Preload | Tuple populated from another define (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP005-P/` | Audited | 2026-03-11 |  |
-| CAP005-I | Inline | Tuple populated from another define (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP005-I/` | Audited | 2026-03-11 |  |
-| CAP006-P | Preload | Retrieve with with-clause join (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP006-P/` | Audited | 2026-03-11 |  |
-| CAP006-I | Inline | Retrieve with with-clause join (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP006-I/` | Audited | 2026-03-11 |  |
-| CAP007-P | Preload | Retrieve with without-clause join (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP007-P/` | Audited | 2026-03-11 |  |
-| CAP007-I | Inline | Retrieve with without-clause join (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP007-I/` | Audited | 2026-03-11 |  |
-| CAP008-P | Preload | Query with sort (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP008-P/` | Audited | 2026-03-11 |  |
-| CAP008-I | Inline | Query with sort (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP008-I/` | Audited | 2026-03-11 |  |
-| CAP009-P | Preload | Complex predicate with function calls (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP009-P/` | Audited | 2026-03-11 |  |
-| CAP009-I | Inline | Complex predicate with function calls (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP009-I/` | Audited | 2026-03-11 |  |
-| CAP010-P | Preload | Many returned results with exists (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP010-P/` | Audited | 2026-03-11 |  |
-| CAP010-I | Inline | Many returned results with exists (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP010-I/` | Audited | 2026-03-11 |  |
-| CAP011-P | Preload | Let expression (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP011-P/` | Audited | 2026-03-11 |  |
-| CAP011-I | Inline | Let expression (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP011-I/` | Audited | 2026-03-11 |  |
+| CAP001-P | Preload | Count retrieve all of one resource (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP001-P/` | Audited | 2026-03-11 | Golden: `total_count` (40) |
+| CAP001-I | Inline | Count retrieve all of one resource (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP001-I/` | Audited | 2026-03-11 | Golden: `total_count` (40) |
+| CAP002-P | Preload | Retrieve based on valueset (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP002-P/` | Audited | 2026-03-11 | Golden: `round(total_count*selectivity)`; pair with CAP003 |
+| CAP002-I | Inline | Retrieve based on valueset (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP002-I/` | Audited | 2026-03-11 | Golden: `round(total_count*selectivity)`; pair with CAP003 |
+| CAP003-P | Preload | Valueset retrieve plus valueset predicate (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP003-P/` | Audited | 2026-03-11 | Golden: same as CAP002 (equivalence) |
+| CAP003-I | Inline | Valueset retrieve plus valueset predicate (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP003-I/` | Audited | 2026-03-11 | Golden: same as CAP002 (equivalence) |
+| CAP004-P | Preload | Resource return projection (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP004-P/` | Audited | 2026-03-11 | Golden: list `part` min 40 |
+| CAP004-I | Inline | Resource return projection (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP004-I/` | Audited | 2026-03-11 | Golden: list `part` min 40 |
+| CAP005-P | Preload | Tuple populated from another define (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP005-P/` | Audited | 2026-03-11 | Golden: `round(total_count*selectivity)` |
+| CAP005-I | Inline | Tuple populated from another define (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP005-I/` | Audited | 2026-03-11 | Golden: `round(total_count*selectivity)` |
+| CAP006-P | Preload | Retrieve with with-clause join (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP006-P/` | Audited | 2026-03-11 | Golden: 8; local mutator (no nomatch linked obs) |
+| CAP006-I | Inline | Retrieve with with-clause join (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP006-I/` | Audited | 2026-03-11 | Golden: 8; local mutator |
+| CAP007-P | Preload | Retrieve with without-clause join (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP007-P/` | Audited | 2026-03-11 | Golden: `round(total_count*selectivity)` |
+| CAP007-I | Inline | Retrieve with without-clause join (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP007-I/` | Audited | 2026-03-11 | Golden: `round(total_count*selectivity)` |
+| CAP008-P | Preload | Query with sort (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP008-P/` | Audited | 2026-03-11 | Golden: 40 parts; sort by id; regex order |
+| CAP008-I | Inline | Query with sort (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP008-I/` | Audited | 2026-03-11 | Golden: 40 parts; sort by id; regex order |
+| CAP009-P | Preload | Complex predicate with function calls (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP009-P/` | Audited | 2026-03-11 | Golden: `round(total_count*selectivity)` |
+| CAP009-I | Inline | Complex predicate with function calls (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP009-I/` | Audited | 2026-03-11 | Golden: `round(total_count*selectivity)` |
+| CAP010-P | Preload | Many returned results with exists (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP010-P/` | Audited | 2026-03-11 | Golden: `valueBoolean` true; selectivity 0.5 |
+| CAP010-I | Inline | Many returned results with exists (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP010-I/` | Audited | 2026-03-11 | Golden: `valueBoolean` true; selectivity 0.5 |
+| CAP011-P | Preload | Let expression (preload) | Exercise specific CQL behavior with preloaded resident data + restart mode. | PASS only | `bench/scenarios/tpcqf/CAP011-P/` | Audited | 2026-03-11 | Golden: `total_count - null_id_count` (38) |
+| CAP011-I | Inline | Let expression (inline) | Exercise specific CQL behavior with inline data bundle mode. | PASS only | `bench/scenarios/tpcqf/CAP011-I/` | Audited | 2026-03-11 | Golden: `total_count - null_id_count` (38) |
 
 ## Optional Audit Checklist (per scenario)
 

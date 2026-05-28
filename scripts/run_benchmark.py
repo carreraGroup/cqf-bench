@@ -42,6 +42,15 @@ class EngineAdapter:
     def payload_from_query(self, scenario: dict[str, Any], patient_id: str, phase: str = "main") -> dict[str, Any] | None:
         return None
 
+    def normalize_response(
+        self,
+        scenario: dict[str, Any],
+        raw: str,
+        status: int,
+        phase: str = "main",
+    ) -> str:
+        return raw
+
 
 class GenericCqfAdapter(EngineAdapter):
     name = "generic-cqf"
@@ -151,6 +160,42 @@ class MercuryCqfAdapter(EngineAdapter):
                     out["parameter"] = params
             return out
         return payload
+
+    def normalize_response(
+        self,
+        scenario: dict[str, Any],
+        raw: str,
+        status: int,
+        phase: str = "main",
+    ) -> str:
+        if phase != "main" or status // 100 != 2:
+            return raw
+        parsed = _json_or_none(raw)
+        if not isinstance(parsed, dict) or parsed.get("resourceType") != "Parameters":
+            return raw
+        params = parsed.get("parameter")
+        if not isinstance(params, list):
+            return raw
+        flattened: list[Any] = []
+        changed = False
+        for p in params:
+            if (
+                isinstance(p, dict)
+                and p.get("name") == "evaluate"
+                and isinstance(p.get("part"), list)
+            ):
+                flattened.extend(p.get("part", []))
+                changed = True
+            else:
+                flattened.append(p)
+        if not changed:
+            return raw
+        out = dict(parsed)
+        out["parameter"] = flattened
+        try:
+            return json.dumps(out, separators=(",", ":"))
+        except Exception:  # noqa: BLE001
+            return raw
 
 
 class HapiCqfRulerAdapter(EngineAdapter):
@@ -495,8 +540,8 @@ def preload_required_libraries(engine: dict[str, Any], scenarios: list[dict[str,
     headers = expand_headers(engine.get("headers", {}))
     for library_id, version in sorted(refs):
         url = f"{base_url}{fhir_base}/Library/{library_id}"
-        # Ensure latest content is applied even when servers treat same-id/version updates as immutable.
-        request_once("DELETE", url, headers, None, timeout)
+        # Use idempotent update semantics for cross-engine stability.
+        # Pre-delete can race with server indexing/version checks on some engines.
         payload = build_library_resource(library_id, version)
         status, _, raw = request_once("PUT", url, headers, payload, timeout)
         if status // 100 == 2:
@@ -516,8 +561,8 @@ def preload_scenario_cql_libraries(engine: dict[str, Any], scenarios: list[dict[
             continue
         library_id, version = scenario_library_ref(scenario)
         url = f"{base_url}{fhir_base}/Library/{library_id}"
-        # Ensure latest content is applied even when servers treat same-id/version updates as immutable.
-        request_once("DELETE", url, headers, None, timeout)
+        # Use idempotent update semantics for cross-engine stability.
+        # Pre-delete can race with server indexing/version checks on some engines.
         payload = build_library_resource(library_id, version, cql_text=cql_text)
         status, _, raw = request_once("PUT", url, headers, payload, timeout)
         if status // 100 == 2:
@@ -879,6 +924,95 @@ def _stable_rng(seed_text: str) -> random.Random:
     return random.Random(seed_int)
 
 
+def compute_mix_counts(plan: dict[str, Any], selectivity: float) -> dict[str, int]:
+    """Mirror mutator mix allocation used by generate_bundle_from_fsh_mutator."""
+    total_count = int(plan.get("total_count", 40))
+    mix = plan.get("mix", [])
+    counts: dict[str, int] = {}
+    remaining = total_count
+    mix_items = [item for item in mix if isinstance(item, dict)]
+    for i, item in enumerate(mix_items):
+        template = str(item.get("template", ""))
+        if not template:
+            continue
+        ratio = item.get("ratio")
+        if item.get("ratio_from_selectivity") == "match":
+            ratio = selectivity
+        elif item.get("ratio_from_selectivity") == "nomatch":
+            ratio = 1.0 - selectivity
+        try:
+            r = float(ratio) if ratio is not None else 0.0
+        except (TypeError, ValueError):
+            r = 0.0
+        if i == len(mix_items) - 1:
+            count = max(0, remaining)
+        else:
+            count = int(round(total_count * max(0.0, min(1.0, r))))
+            remaining -= count
+        counts[template] = counts.get(template, 0) + count
+    return counts
+
+
+def load_mutator_plan_for_scenario(scenario: dict[str, Any]) -> dict[str, Any] | None:
+    data_cfg = scenario.get("_data_config")
+    if not isinstance(data_cfg, dict):
+        return None
+    base_dir = Path(str(scenario.get("__base_dir", ".")))
+
+    # Prefer setup generator when present, but fall back to main generator for
+    # inline scenarios so validation context reflects generated fixture counts.
+    for phase_key in ("setup", "main"):
+        phase_cfg = data_cfg.get(phase_key)
+        if not isinstance(phase_cfg, dict):
+            continue
+        gen = phase_cfg.get("generator")
+        if not isinstance(gen, dict) or str(gen.get("type", "")) != "fsh_mutation":
+            continue
+        mutator_file = str(gen.get("mutator_file", "mutator.yaml"))
+        mutator_path = base_dir / mutator_file
+        if mutator_path.exists():
+            return load_config(mutator_path)
+    return None
+
+
+def null_id_count_from_plan(plan: dict[str, Any]) -> int:
+    total = 0
+    for item in plan.get("fixed_templates", []):
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("template", "")) == "ConditionMissingId":
+            try:
+                total += int(item.get("count", 0))
+            except (TypeError, ValueError):
+                continue
+    return total
+
+
+def build_validation_context(
+    scenario: dict[str, Any],
+    patient_ids: list[str],
+    selectivity: float,
+    requests_per_patient: int = 1,
+    repetitions: int = 1,
+) -> dict[str, Any]:
+    plan = load_mutator_plan_for_scenario(scenario)
+    total_count = int(plan.get("total_count", 40)) if isinstance(plan, dict) else 40
+    mix_counts = compute_mix_counts(plan, selectivity) if isinstance(plan, dict) else {}
+    match_count = int(mix_counts.get("ConditionMatch", round(total_count * selectivity)))
+    nomatch_count = int(mix_counts.get("ConditionNoMatch", total_count - match_count))
+    null_id_count = null_id_count_from_plan(plan) if isinstance(plan, dict) else 0
+    return {
+        "selectivity": selectivity,
+        "total_count": total_count,
+        "match_count": match_count,
+        "nomatch_count": nomatch_count,
+        "null_id_count": null_id_count,
+        "scale_factor": len(patient_ids),
+        "requests_per_patient": requests_per_patient,
+        "repetitions": repetitions,
+    }
+
+
 def _set_path_value(obj: dict[str, Any], path: str, value: Any) -> None:
     parts = path.split(".")
     cur: Any = obj
@@ -1039,31 +1173,7 @@ def generate_bundle_from_fsh_mutator(
     seed_text = seed_template.replace("{patient_id}", patient_id).replace("{scenario_id}", str(scenario.get("id", "")))
     rng = _stable_rng(seed_text)
 
-    total_count = int(plan.get("total_count", 40))
-    mix = plan.get("mix", [])
-    counts: dict[str, int] = {}
-    remaining = total_count
-    for i, item in enumerate(mix):
-        if not isinstance(item, dict):
-            continue
-        template = str(item.get("template", ""))
-        if not template:
-            continue
-        ratio = item.get("ratio")
-        if item.get("ratio_from_selectivity") == "match":
-            ratio = selectivity
-        elif item.get("ratio_from_selectivity") == "nomatch":
-            ratio = 1.0 - selectivity
-        try:
-            r = float(ratio) if ratio is not None else 0.0
-        except (TypeError, ValueError):
-            r = 0.0
-        if i == len(mix) - 1:
-            count = max(0, remaining)
-        else:
-            count = int(round(total_count * max(0.0, min(1.0, r))))
-            remaining -= count
-        counts[template] = counts.get(template, 0) + count
+    counts = compute_mix_counts(plan, selectivity)
 
     mutations_by_template: dict[str, list[dict[str, Any]]] = {}
     for m in plan.get("mutations", []):
@@ -1144,6 +1254,32 @@ def generate_bundle_from_fsh_mutator(
                             "resource": linked_resource,
                         }
                     )
+
+    for item in plan.get("fixed_templates", []):
+        if not isinstance(item, dict):
+            continue
+        template_name = str(item.get("template", ""))
+        if not template_name or template_name not in templates:
+            continue
+        try:
+            fixed_count = int(item.get("count", 0))
+        except (TypeError, ValueError):
+            fixed_count = 0
+        for i in range(fixed_count):
+            resource = render_obj(copy.deepcopy(templates[template_name]), patient_id)
+            if not isinstance(resource, dict):
+                continue
+            mut_seq = mutations_by_template.get(template_name, [])
+            for m in mut_seq:
+                for f in m.get("fields", []):
+                    if isinstance(f, dict):
+                        _apply_mutation_op(resource, f, i, rng)
+            if resource.get("id"):
+                rid = str(resource["id"])
+            else:
+                rid = f"{template_name.lower()}-{patient_id}-fixed-{i}"
+                resource["id"] = rid
+            entries.append({"request": {"method": "PUT", "url": f"{resource['resourceType']}/{rid}"}, "resource": resource})
 
     bundle = {"resourceType": "Bundle", "type": "transaction", "entry": entries}
     output_mode = str(phase_cfg.get("output_mode", "bundle"))
@@ -1283,24 +1419,28 @@ def _split_json_path(path: str) -> list[str]:
 
 
 def _eval_validation_expression(expression: str, context: dict[str, Any]) -> float:
-    """Evaluate a simple numeric expression using only names from context. Safe subset of Python."""
+    """Evaluate a numeric expression using only names from context and round()."""
     if not expression or not isinstance(context, dict):
         return 0.0
     expr = str(expression).strip()
     if not expr:
         return 0.0
     allowed = {k: v for k, v in context.items() if isinstance(v, (int, float))}
+    allowed_funcs = {"round": round}
     try:
         import ast
         tree = ast.parse(expr, mode="eval")
         for node in ast.walk(tree):
-            if isinstance(node, ast.Name):
-                if node.id not in allowed:
-                    return 0.0
             if isinstance(node, ast.Call):
-                return 0.0
+                if not isinstance(node.func, ast.Name) or node.func.id not in allowed_funcs:
+                    return 0.0
+                if len(node.args) != 1 or node.keywords:
+                    return 0.0
+            elif isinstance(node, ast.Name):
+                if node.id not in allowed and node.id not in allowed_funcs:
+                    return 0.0
         code = compile(tree, "<validation>", "eval")
-        result = eval(code, {"__builtins__": {}}, allowed)
+        result = eval(code, {"__builtins__": {}}, {**allowed, **allowed_funcs})
         return float(result)
     except Exception:  # noqa: BLE001
         return 0.0
@@ -1572,6 +1712,12 @@ def run_response_validators(
             rx = re.compile(pattern)
             if not any(rx.search(str(node)) for node in nodes):
                 failures.append(f"path {path} does not match /{pattern}/")
+        elif vtype == "response_regex":
+            pattern = str(v.get("pattern", ""))
+            if not pattern:
+                continue
+            if not re.search(pattern, raw, flags=re.DOTALL):
+                failures.append(f"response body does not match /{pattern}/")
 
     return len(failures) == 0, True, failures
 
@@ -2229,6 +2375,61 @@ def apply_generated_data_root_overrides(
     return out
 
 
+def _extract_resource_refs_for_cleanup(payload: Any) -> list[tuple[str, str]]:
+    refs: list[tuple[str, str]] = []
+    if not isinstance(payload, dict):
+        return refs
+    if payload.get("resourceType") != "Bundle":
+        return refs
+    entries = payload.get("entry")
+    if not isinstance(entries, list):
+        return refs
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        resource = entry.get("resource")
+        if not isinstance(resource, dict):
+            continue
+        resource_type = resource.get("resourceType")
+        resource_id = resource.get("id")
+        if isinstance(resource_type, str) and isinstance(resource_id, str) and resource_type and resource_id:
+            refs.append((resource_type, resource_id))
+    seen: set[tuple[str, str]] = set()
+    ordered: list[tuple[str, str]] = []
+    for ref in refs:
+        if ref in seen:
+            continue
+        seen.add(ref)
+        ordered.append(ref)
+    return ordered
+
+
+def _cleanup_setup_target(
+    engine: dict[str, Any],
+    setup_spec: dict[str, Any],
+    patient_id: str,
+    timeout: int,
+    raw_payload: Any,
+) -> None:
+    if setup_spec.get("path_role") != "data":
+        return
+    headers = expand_headers(engine.get("headers", {}))
+    data_base_path = base_path_for_role(engine, "data")
+    fhir_base_path = base_path_for_role(engine, "fhir")
+    if data_base_path != fhir_base_path:
+        clear_url = f"{engine['base_url'].rstrip('/')}{data_base_path}/data/{patient_id}"
+        request_once("DELETE", clear_url, headers, None, timeout, None)
+        return
+
+    refs = _extract_resource_refs_for_cleanup(raw_payload)
+    if not refs:
+        return
+    base = f"{engine['base_url'].rstrip('/')}{fhir_base_path}"
+    for resource_type, resource_id in refs:
+        delete_url = f"{base}/{resource_type}/{resource_id}"
+        request_once("DELETE", delete_url, headers, None, timeout, None)
+
+
 def setup_for_scenario(
     engine: dict[str, Any],
     scenario: dict[str, Any],
@@ -2269,6 +2470,9 @@ def setup_for_scenario(
             phase="setup",
             apply_adapter=False,
         )
+        # Cleanup is idempotent and best-effort; missing resources are benign.
+        if str(method).upper() in {"POST", "PUT"}:
+            _cleanup_setup_target(engine, setup_spec, patient_id, timeout, raw_payload)
         url = endpoint_url(engine, setup_spec, patient_id, adapter, phase="setup", payload=raw_payload)
         payload = adapter.adapt_payload(setup_spec, raw_payload, phase="setup") if raw_payload is not None else None
         status, ms, _ = request_once(
@@ -2311,6 +2515,7 @@ def setup_for_scenario(
 def run_scenario(
     engine: dict[str, Any],
     scenario: dict[str, Any],
+    all_scenarios: list[dict[str, Any]] | None,
     patient_ids: list[str],
     concurrency: int,
     timeout: int,
@@ -2321,18 +2526,32 @@ def run_scenario(
     selectivity: float = 0.2,
     strict_mode: bool = False,
     suite_defaults: dict[str, Any] | None = None,
+    ensure_artifacts: bool = False,
 ) -> dict[str, Any]:
-    validation_context: dict[str, Any] = {
-        "selectivity": selectivity,
-        "scale_factor": len(patient_ids),
-        "requests_per_patient": requests_per_patient,
-        "repetitions": repetitions,
-    }
+    validation_context = build_validation_context(
+        scenario,
+        patient_ids,
+        selectivity,
+        requests_per_patient=requests_per_patient,
+        repetitions=repetitions,
+    )
     base_method = scenario["method"]
     policy = resolve_http_policy_for_spec(scenario, strict_mode, suite_defaults=suite_defaults)
     headers = expand_headers(engine.get("headers", {}))
     conformance_only = is_conformance_scenario(scenario)
     endpoint_used: dict[str, Any] | None = None
+
+    if ensure_artifacts:
+        ensure_scenarios = [scenario]
+        conf_id = scenario.get("_endpoint_conf_id")
+        if isinstance(conf_id, str) and isinstance(all_scenarios, list):
+            conf_s = next((s for s in all_scenarios if s.get("id") == conf_id), None)
+            if isinstance(conf_s, dict):
+                ensure_scenarios.append(conf_s)
+        preload_required_libraries(engine, ensure_scenarios, timeout)
+        preload_scenario_cql_libraries(engine, ensure_scenarios, timeout)
+        preload_required_measures(engine, ensure_scenarios, timeout)
+        preload_standard_valuesets(engine, timeout)
 
     if conformance_only:
         total_requests = max(1, int(repetitions))
@@ -2483,6 +2702,32 @@ def run_scenario(
         restarted = restart_engine_container(engine)
         if not restarted:
             print(f"{scenario['id']}: requested restart_after_setup but container restart was not performed")
+        else:
+            # Rehydrate only the current scenario prerequisites (and its conf endpoint source),
+            # not the whole suite, to avoid repeated global preloads between tests.
+            rehydrate_scenarios = [scenario]
+            conf_id = scenario.get("_endpoint_conf_id")
+            if isinstance(conf_id, str) and isinstance(all_scenarios, list):
+                conf_s = next((s for s in all_scenarios if s.get("id") == conf_id), None)
+                if isinstance(conf_s, dict):
+                    rehydrate_scenarios.append(conf_s)
+            preload_required_libraries(engine, rehydrate_scenarios, timeout)
+            preload_scenario_cql_libraries(engine, rehydrate_scenarios, timeout)
+            preload_required_measures(engine, rehydrate_scenarios, timeout)
+            preload_standard_valuesets(engine, timeout)
+            if setup_result is not None:
+                scenario_no_restart = dict(scenario)
+                scenario_no_restart["restart_after_setup"] = False
+                setup_result = setup_for_scenario(
+                    engine,
+                    scenario_no_restart,
+                    patient_ids,
+                    timeout,
+                    adapter,
+                    selectivity=selectivity,
+                    strict_mode=strict_mode,
+                    suite_defaults=suite_defaults,
+                )
 
     all_latencies: list[float] = []
     timed_latencies: list[float] = []
@@ -2536,6 +2781,7 @@ def run_scenario(
             total_tasks += len(tasks)
             for fut in as_completed(tasks):
                 status, ms, raw = fut.result()
+                raw = adapter.normalize_response(scenario, raw, status, phase="main")
                 all_latencies.append(ms)
                 key = str(status)
                 status_counts[key] = status_counts.get(key, 0) + 1
@@ -3071,6 +3317,7 @@ def main() -> int:
         ordered_scenarios = [s for s in scenarios if is_conformance_scenario(s)] + [
             s for s in scenarios if not is_conformance_scenario(s)
         ]
+        ensure_artifacts_next = False
         for scenario in ordered_scenarios:
             scenario_for_run = scenario
             if not is_conformance_scenario(scenario):
@@ -3091,6 +3338,7 @@ def main() -> int:
             result = run_scenario(
                 engine,
                 scenario_for_run,
+                ordered_scenarios,
                 patient_ids,
                 concurrency,
                 timeout,
@@ -3101,7 +3349,9 @@ def main() -> int:
                 selectivity=resolve_selectivity(scenario, defaults, args.selectivity),
                 strict_mode=(args.score_mode == "strict-2xx"),
                 suite_defaults=suite,
+                ensure_artifacts=ensure_artifacts_next,
             )
+            ensure_artifacts_next = bool(scenario_for_run.get("restart_after_setup", False))
             engine_results.append(result)
             if is_conformance_scenario(scenario):
                 conf_results_by_id[scenario["id"]] = result

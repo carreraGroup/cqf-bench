@@ -16,3 +16,12 @@ InstanceOf: Observation
 * code.coding[0].system = "http://snomed.info/sct"
 * code.coding[0].code = "90000001"
 * valueString = "non-match"
+
+Instance: ConditionMissingId
+InstanceOf: Condition
+* subject = Reference(Patient/{patient_id})
+* recordedDate = "2015-03-01T00:00:00Z"
+* clinicalStatus.coding[0].system = "http://terminology.hl7.org/CodeSystem/condition-clinical"
+* clinicalStatus.coding[0].code = "active"
+* code.coding[0].system = "http://snomed.info/sct"
+* code.coding[0].code = "38341003"

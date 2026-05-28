@@ -40,6 +40,9 @@ Conformance rows are never timed.
 
 ### Capability scenarios
 
+Capability rows use [golden validation](/cqf-bench/concepts/golden-validation/):
+correct HTTP status **and** passing `expected.yaml` validators.
+
 A capability scenario row is `PASS` only when **all** of the following hold:
 
 - no failed requests,

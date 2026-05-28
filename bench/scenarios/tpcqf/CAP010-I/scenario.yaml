@@ -11,7 +11,7 @@ query:
 required_capabilities:
 - inline_bundle_execute
 - resident_execute
-selectivity: 0.2
+selectivity: 0.5
 expected_http:
   success:
   - 200

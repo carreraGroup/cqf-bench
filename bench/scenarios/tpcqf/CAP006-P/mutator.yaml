@@ -9,11 +9,10 @@ mix:
   ratio_from_selectivity: match
 - template: ConditionNoMatch
   ratio_from_selectivity: nomatch
+# Semi-join: only match rows get a related Observation so Count(with) != Count(all).
 linked_templates:
   ConditionMatch:
   - ObservationFinal
-  ConditionNoMatch:
-  - ObservationCancelled
 mutations:
 - template: ConditionMatch
   fields:
@@ -24,10 +23,6 @@ mutations:
   - path: id
     op: suffix-counter
 - template: ObservationFinal
-  fields:
-  - path: id
-    op: suffix-counter
-- template: ObservationCancelled
   fields:
   - path: id
     op: suffix-counter

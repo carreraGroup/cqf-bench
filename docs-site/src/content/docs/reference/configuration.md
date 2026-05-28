@@ -173,17 +173,61 @@ setup:
 
 ## Validators (`expected.yaml`)
 
-Validators assert correctness on the response. They run only when the status is
-in `when_status_in`.
+Validators implement **golden validation** on capability scenarios: the harness
+compares the response body to the expected answer derived from mutator settings.
+See [Golden Validation](/cqf-bench/concepts/golden-validation/). Validators run
+only when the status is in `when_status_in`.
+
+Unfiltered count (CAP001):
 
 ```yaml
 when_status_in: [200]
 validators:
   - type: not_operation_outcome_error
-  - type: min_items
+  - type: tokenized_numeric_equals
     path: $.parameter[*]
-    min: 1
+    expression: total_count
+    expected_type: valueInteger
+    rounding: nearest
 ```
+
+Filtered count (CAP002, CAP006, …):
+
+```yaml
+  - type: tokenized_numeric_equals
+    path: $.parameter[*]
+    expression: round(total_count * selectivity)
+    expected_type: valueInteger
+    rounding: nearest
+```
+
+List projection (CAP004) or sort (CAP008):
+
+```yaml
+  - type: min_items
+    path: $.parameter[?(@.name=='ReturnConditionIds')].part[*]
+    min: 40
+```
+
+```yaml
+  - type: response_regex
+    pattern: cond-[A-Za-z0-9]+-m-0.*cond-[A-Za-z0-9]+-n-0
+```
+
+### Validation context
+
+For `tokenized_numeric_equals`, the `expression` is evaluated against a
+per-scenario context built at run time:
+
+| Name | Source |
+| --- | --- |
+| `total_count` | `mutator.yaml` (`total_count`, default 40) |
+| `selectivity` | `scenario.yaml` or suite `defaults` (default 0.2) |
+| `match_count` / `nomatch_count` | Mutator mix ratios × `total_count` |
+| `null_id_count` | Sum of `fixed_templates[].count` when present |
+
+Expressions may use `round(total_count * selectivity)` and arithmetic such as
+`total_count - null_id_count`.
 
 | Validator `type` | Key fields | Checks |
 | --- | --- | --- |
@@ -193,7 +237,8 @@ validators:
 | `min_items` | `path`, `min` | The JSON path selects at least `min` nodes. |
 | `value_type_and_equals` | `path`, `expected_type`, `expected_value?`, `mode?` | Node(s) match a FHIR value type and optional value (`mode: any` \| `all`). |
 | `function_result_body_equals` | `name`, `expected_body`, `compare_field?` | A result parameter's body equals the expected body. |
-| `tokenized_numeric_equals` | `path`, `expression`, `expected_type?`, `rounding?`, `tolerance?` | A numeric result equals an expression over run context (e.g. `selectivity * scale_factor`). |
+| `tokenized_numeric_equals` | `path`, `expression`, `expected_type?`, `rounding?`, `tolerance?` | A numeric result equals an expression over run context (`total_count`, `selectivity`, `round(total_count * selectivity)`, etc.). |
+| `response_regex` | `pattern` | Raw response body must match the regex (e.g. sort-order smoke tests). |
 
 JSON paths support a small subset: `$`, dotted fields, `[*]` for arrays, and a
 simple `[?(@.field=='value')]` filter.
@@ -230,6 +275,26 @@ Mutation operations: `suffix-counter` (append a counter), `pick` (choose from
 `values`), and `date-jitter` (shift an ISO datetime within a `days: [min, max]`
 range). A `mix` entry can use a fixed `ratio` or derive it from selectivity via
 `ratio_from_selectivity: match | nomatch`.
+
+### `fixed_templates`
+
+Optional list of extra template instances generated **in addition** to the mix
+(for example CAP011 adds two `ConditionMissingId` rows without an `id`):
+
+```yaml
+fixed_templates:
+  - template: ConditionMissingId
+    count: 2
+```
+
+The harness exposes `null_id_count` in the validation context so validators can
+expect `total_count - null_id_count` rows after a `where id is not null` filter.
+
+### Scenario-local mutator
+
+Most scenarios inherit the shared template mix. Scenarios that need different
+linked resources (CAP006 semi-join, CAP011 `let`) ship their own `mutator.yaml`
+in the scenario folder; `data.yaml` points at `mutator_file: mutator.yaml`.
 
 ## FSH fixtures (`match.fsh`, `variations.fsh`)
 

@@ -12,8 +12,6 @@ mix:
 linked_templates:
   ConditionMatch:
   - ObservationFinal
-  ConditionNoMatch:
-  - ObservationCancelled
 mutations:
 - template: ConditionMatch
   fields:
@@ -24,10 +22,6 @@ mutations:
   - path: id
     op: suffix-counter
 - template: ObservationFinal
-  fields:
-  - path: id
-    op: suffix-counter
-- template: ObservationCancelled
   fields:
   - path: id
     op: suffix-counter

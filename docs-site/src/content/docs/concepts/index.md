@@ -7,6 +7,7 @@ slug: concepts
 This page describes the model CQF Bench is built on. The detail pages —
 [Benchmark Suites](/cqf-bench/concepts/benchmark-suites/),
 [Test Cases](/cqf-bench/concepts/test-cases/),
+[Golden Validation](/cqf-bench/concepts/golden-validation/),
 [Engine Adapters](/cqf-bench/concepts/engine-adapters/), and
 [Results](/cqf-bench/concepts/results/) — expand each piece.
 
@@ -81,7 +82,8 @@ classes:
 - **Conformance (`CONF###`)** — endpoint/verb reachability and CQF-conformant
   status codes. Untimed.
 - **Capability + Performance (`CAP###-P` / `CAP###-I`)** — data-backed CQL
-  correctness and latency. Timed only on correct responses.
+  with **golden validation** (expected counts, booleans, lists). Timed only on
+  correct responses.
 
 See [Test Cases](/cqf-bench/concepts/test-cases/).
 
@@ -101,7 +103,9 @@ Scoring is deliberately strict and separates HTTP outcome from correctness:
   `expected_http` policy: `PASS` (2xx), `UNSUPPORTED` (e.g. 422), `WARNING`
   (other 4xx needing attention), `FAIL` (5xx / timeout).
 - **Capability** scenarios `PASS` only when the HTTP outcome is success **and**
-  every correctness validator passes. Anything else is `FAIL`.
+  every golden validator in `expected.yaml` passes. Anything else is `FAIL`
+  (including HTTP `200` with a wrong answer). See
+  [Golden Validation](/cqf-bench/concepts/golden-validation/).
 - **Timing is recorded only for PASS responses.** Failed, unsupported, and
   timed-out requests are excluded from latency percentiles, so an engine is never
   credited with fast timing for a wrong or unsupported answer.
