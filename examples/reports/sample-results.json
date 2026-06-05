@@ -1,0 +1,79 @@
+{
+  "_comment": "Illustrative sample only - not a real benchmark run, not official results for any engine. Hand-authored to show report shape.",
+  "run_id": "TPCQF-v1_100_sample00",
+  "suite_id": "TPCQF-v1",
+  "suite_file": "bench/scenarios/tpcqf/suite.yaml",
+  "suite_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "engines_file": "bench/config/local.engines.yaml",
+  "git_commit": "0000000",
+  "scale": 100,
+  "concurrency": 16,
+  "timeout_seconds": 30,
+  "score_mode": "compat",
+  "repetitions": 5,
+  "run_phase": "execute",
+  "started_utc": "2026-06-04T15:00:00+00:00",
+  "ended_utc": "2026-06-04T15:03:42+00:00",
+  "duration_seconds": 222.41,
+  "engines": [
+    {
+      "name": "hapi-cqf-ruler-local",
+      "base_url": "http://localhost:8081",
+      "adapter": "hapi-cqf-ruler",
+      "results": [
+        {
+          "scenario_id": "CONF001",
+          "scenario_name": "CapabilityStatement advertises CQF operations",
+          "test_type": "conformance",
+          "conformance_status": "PASS",
+          "conformance_pass": true,
+          "conformance_note": "",
+          "total_requests": 1,
+          "pass_requests": 1
+        },
+        {
+          "scenario_id": "CONF004",
+          "scenario_name": "$apply (PlanDefinition) endpoint shape",
+          "test_type": "conformance",
+          "conformance_status": "UNSUPPORTED",
+          "conformance_pass": false,
+          "conformance_note": "HTTP 501 unsupported",
+          "total_requests": 1,
+          "unsupported_requests": 1
+        },
+        {
+          "scenario_id": "CAP001-P",
+          "scenario_name": "Resident data load + measure $evaluate (preloaded)",
+          "test_type": "capability",
+          "fail_requests": 0,
+          "unsupported_requests": 0,
+          "warning_requests": 0,
+          "timeout_requests": 0,
+          "timed_requests": 5,
+          "timed_ok_requests": 5,
+          "latency_ms": { "p95": 84.2, "avg_p95_over_repetitions": 84.2 }
+        },
+        {
+          "scenario_id": "CAP002-P",
+          "scenario_name": "Multi-library compute (preloaded)",
+          "test_type": "capability",
+          "fail_requests": 5,
+          "incorrect_result_failures": 5,
+          "incorrect_result_notes": ["expected 42 members, got 37"],
+          "unsupported_requests": 0,
+          "timed_ok_requests": 0
+        },
+        {
+          "scenario_id": "CAP003-P",
+          "scenario_name": "write-once-execute-many library reuse",
+          "test_type": "capability",
+          "fail_requests": 0,
+          "unsupported_requests": 5,
+          "warning_requests": 0,
+          "timeout_requests": 0,
+          "timed_ok_requests": 0
+        }
+      ]
+    }
+  ]
+}

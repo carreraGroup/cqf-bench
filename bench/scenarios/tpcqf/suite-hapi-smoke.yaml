@@ -1,0 +1,7 @@
+suite_id: TPCQF-HAPI-SMOKE
+scenario_ids:
+- CONF012
+- CAP002-P
+- CAP002-I
+- CAP003-P
+- CAP003-I

@@ -1,0 +1,13 @@
+[project]
+name = "cqf-bench"
+version = "0.1.0"
+description = "Open CQF endpoint benchmark harness"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+dependencies = ["PyYAML>=6.0"]
+
+[tool.setuptools]
+py-modules = []
+
+[tool.black]
+line-length = 100

@@ -1,0 +1,12 @@
+LICENSE
+NOTICE
+README.md
+pyproject.toml
+cqf_bench.egg-info/PKG-INFO
+cqf_bench.egg-info/SOURCES.txt
+cqf_bench.egg-info/dependency_links.txt
+cqf_bench.egg-info/requires.txt
+cqf_bench.egg-info/top_level.txt
+tests/test_compare_reports.py
+tests/test_golden_validation.py
+tests/test_report_bundle.py

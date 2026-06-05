@@ -1,0 +1,9 @@
+when_status_in:
+- 200
+validators:
+- type: not_operation_outcome_error
+- type: tokenized_numeric_equals
+  path: $.parameter[*]
+  expression: round(total_count * selectivity)
+  expected_type: valueInteger
+  rounding: nearest

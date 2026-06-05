@@ -1,0 +1,94 @@
+/* Landing page (Starlight splash template at /) */
+
+:root[data-theme='light'] {
+	--landing-accent: #1a5fb4;
+	--landing-surface: #f4f6f9;
+	--landing-border: #d8dee8;
+}
+
+:root[data-theme='dark'] {
+	--landing-accent: #62a0ea;
+	--landing-surface: #1a1d23;
+	--landing-border: #2e3440;
+}
+
+/* Slightly more breathing room below the hero */
+:global(.hero) {
+	padding-block: clamp(2.5rem, 6vw, 4.5rem);
+}
+
+:global(.hero h1) {
+	font-size: clamp(2.25rem, 5vw, 3.25rem);
+	letter-spacing: -0.02em;
+}
+
+:global(.hero .tagline) {
+	font-size: clamp(1.05rem, 2.2vw, 1.25rem);
+	max-width: 42rem;
+	line-height: 1.55;
+}
+
+.landing-section {
+	margin-top: 3rem;
+}
+
+.landing-section > h2 {
+	text-align: center;
+	font-size: 1.5rem;
+	margin-bottom: 0.35rem;
+}
+
+.landing-section > .landing-lead {
+	text-align: center;
+	color: var(--sl-color-gray-3);
+	margin: 0 auto 1.75rem;
+	max-width: 36rem;
+	font-size: 1.05rem;
+}
+
+.landing-get-panel {
+	background: var(--landing-surface);
+	border: 1px solid var(--landing-border);
+	border-radius: 0.75rem;
+	padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.landing-get-panel p {
+	margin-top: 0;
+}
+
+.landing-cta-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	justify-content: center;
+	margin-top: 2rem;
+}
+
+.landing-pill-grid {
+	display: grid;
+	gap: 1rem;
+	grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+	margin-top: 1.5rem;
+}
+
+.landing-pill {
+	border: 1px solid var(--landing-border);
+	border-radius: 0.65rem;
+	padding: 1.1rem 1.25rem;
+	background: var(--sl-color-bg);
+}
+
+.landing-pill strong {
+	display: block;
+	font-size: 1rem;
+	margin-bottom: 0.35rem;
+	color: var(--landing-accent);
+}
+
+.landing-pill p {
+	margin: 0;
+	font-size: 0.92rem;
+	color: var(--sl-color-gray-3);
+	line-height: 1.45;
+}

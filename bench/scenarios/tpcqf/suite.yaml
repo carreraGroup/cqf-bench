@@ -1,0 +1,86 @@
+suite_id: TPCQF
+description: CQF benchmark split into conformance (CONF###) and capability+performance
+  (CAP###-P/I).
+defaults:
+  timeout_seconds: 30
+  concurrency: 16
+  warmup_requests: 10
+  requests_per_patient: 1
+  selectivity: 0.2
+expected_http:
+  success:
+  - 200
+  - 201
+  unsupported:
+  - 400
+  - 404
+  - 405
+  - 409
+  - 410
+  - 415
+  - 422
+  - 501
+  fail: []
+scenario_ids:
+- CONF001
+- CONF002
+- CONF003
+- CONF010
+- CONF011
+- CONF012
+- CONF013
+- CONF014
+- CONF015
+- CONF016
+- CONF020
+- CONF021
+- CONF022
+- CONF023
+- CONF030
+- CONF031
+- CONF032
+- CONF033
+- CONF034
+- CONF035
+- CONF036
+- CONF037
+- CONF038
+- CONF039
+- CONF040
+- CONF041
+- CONF042
+- CONF043
+- CONF044
+- CONF045
+- CONF046
+- CONF047
+- CONF048
+- CONF049
+- CONF050
+- CONF051
+- CONF060
+- CONF061
+- CONF062
+- CONF063
+- CAP001-P
+- CAP001-I
+- CAP002-P
+- CAP002-I
+- CAP003-P
+- CAP003-I
+- CAP004-P
+- CAP004-I
+- CAP005-P
+- CAP005-I
+- CAP006-P
+- CAP006-I
+- CAP007-P
+- CAP007-I
+- CAP008-P
+- CAP008-I
+- CAP009-P
+- CAP009-I
+- CAP010-P
+- CAP010-I
+- CAP011-P
+- CAP011-I

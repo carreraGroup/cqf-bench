@@ -1,0 +1,9 @@
+when_status_in:
+- 200
+validators:
+- type: not_operation_outcome_error
+- type: value_type_and_equals
+  path: $.parameter[*]
+  expected_type: valueBoolean
+  expected_value: true
+  mode: any

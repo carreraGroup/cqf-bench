@@ -1,0 +1,8 @@
+selectivity_source: scenario_or_suite_default
+setup:
+  mode: resident
+  generator:
+    type: fsh_mutation
+    match_fsh: match.fsh
+    variations_fsh: variations.fsh
+    mutator_file: mutator.yaml

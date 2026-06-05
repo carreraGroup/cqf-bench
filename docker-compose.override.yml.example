@@ -1,0 +1,8 @@
+# Optional local-only Docker compose overrides.
+# Copy this file to docker-compose.override.yml and fill in local values.
+
+services:
+  mercury-v1:
+    build:
+      context: <path-to-mercury-repo>
+      dockerfile: <path-to-mercury-dockerfile>

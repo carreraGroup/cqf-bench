@@ -1,0 +1,30 @@
+version: 1
+seed: '{patient_id}:{scenario_id}'
+total_count: 40
+include_templates:
+- PatientTemplate
+- ValueSetTemplate
+mix:
+- template: ConditionMatch
+  ratio_from_selectivity: match
+- template: ConditionNoMatch
+  ratio_from_selectivity: nomatch
+linked_templates:
+  ConditionMatch:
+  - ObservationFinal
+mutations:
+- template: ConditionMatch
+  fields:
+  - path: id
+    op: suffix-counter
+- template: ConditionNoMatch
+  fields:
+  - path: id
+    op: suffix-counter
+- template: ObservationFinal
+  fields:
+  - path: id
+    op: suffix-counter
+uniqueness:
+- - resourceType
+  - id

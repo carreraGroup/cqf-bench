@@ -1,0 +1,193 @@
+---
+title: CQF Bench
+description: Open benchmark harness for comparing CQF and Clinical Reasoning engines — conformance, capability, and performance on the same scenarios.
+template: splash
+editUrl: false
+hero:
+  tagline: Benchmark and validate CQF / Clinical Reasoning engines with the same scenarios, the same data, and the same scoring rules.
+  image:
+    file: ../../assets/logo.png
+    alt: CQF Bench
+  actions:
+    - text: Get started
+      link: /cqf-bench/getting-started/
+      icon: right-arrow
+    - text: Download
+      link: '#get-cqf-bench'
+      icon: document
+    - text: Documentation
+      link: /cqf-bench/overview/
+      icon: open-book
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/carreraGroup/cqf-bench
+      icon: external
+      variant: minimal
+---
+
+import {
+  Aside,
+  Card,
+  CardGrid,
+  LinkCard,
+  LinkButton,
+  Tabs,
+  TabItem,
+} from '@astrojs/starlight/components';
+
+<Aside type="note" title="Early preview">
+CQF Bench is a transparent benchmark harness, not a certification program. The
+scenario catalog, adapter contract, and report format are usable but still
+evolving. Results should be interpreted as reproducible benchmark evidence — not
+certification, regulatory validation, or vendor endorsement. All included data is
+synthetic and not derived from real patient, customer, or production data.
+</Aside>
+
+<div class="landing-section" id="get-cqf-bench">
+
+## Get CQF Bench
+
+<p class="landing-lead">
+  Clone the harness, stand up a reference engine with Docker, then run your first
+  benchmark. No published pip package — the repo <em>is</em> the distribution.
+</p>
+
+<div class="landing-get-panel">
+
+<Tabs syncKey="get-cqf-bench">
+
+<TabItem label="Clone repository">
+
+CQF Bench is Apache-2.0 open source. Clone and configure a local engines file:
+
+```bash
+git clone https://github.com/carreraGroup/cqf-bench.git
+cd cqf-bench
+cp bench/config/engines.example.yaml bench/config/local.engines.yaml
+```
+
+**Requirements:** Python 3.10+, Docker (for bundled engine images), Git.
+
+</TabItem>
+
+<TabItem label="Docker engine">
+
+The fastest path to a running CQF server is [HAPI CQF Ruler](/cqf-bench/engines/hapi-cqf-ruler/):
+
+```bash
+python scripts/manage_engines.py bootstrap \
+  --engines bench/config/local.engines.yaml \
+  --engine hapi-cqf-ruler-local
+```
+
+Image: `alphora/cqf-ruler:latest` on port **8081**.
+
+</TabItem>
+
+<TabItem label="Run a benchmark">
+
+```bash
+scripts/bootstrap_python_env.sh --recreate
+source .venv/bin/activate
+
+python scripts/run_benchmark.py \
+  --engines bench/config/local.engines.yaml \
+  --suite bench/scenarios/tpcqf/suite.yaml \
+  --scale 100 \
+  --filter-engine hapi-cqf-ruler-local
+```
+
+Reports: `results/<run_id>.json` and `results/<run_id>.md`.
+
+</TabItem>
+
+</Tabs>
+
+</div>
+
+<div class="landing-cta-row">
+  <LinkButton href="/cqf-bench/getting-started/" variant="primary">
+    Full getting started guide
+  </LinkButton>
+  <LinkButton href="/cqf-bench/installation/" variant="secondary">
+    Installation & prerequisites
+  </LinkButton>
+</div>
+
+</div>
+
+<div class="landing-section">
+
+## Built for comparing engines
+
+<p class="landing-lead">
+  Born for teams evaluating CQF servers, CQL implementers, and anyone who needs
+  reproducible numbers — not ad-hoc Postman collections.
+</p>
+
+<div class="landing-pill-grid">
+  <div class="landing-pill">
+    <strong>Reproducible</strong>
+    <p>Deterministic synthetic data, suite hashing, and git commit provenance in every report.</p>
+  </div>
+  <div class="landing-pill">
+    <strong>Conformance + performance</strong>
+    <p>Untimed HTTP conformance matrices separate from timed capability runs — only PASS rows get latency.</p>
+  </div>
+  <div class="landing-pill">
+    <strong>Engine adapters</strong>
+    <p>One scenario definition runs on HAPI Ruler, Blaze, Mercury, Firely, Smile CDR, and your BYO endpoint.</p>
+  </div>
+  <div class="landing-pill">
+    <strong>Side-by-side reports</strong>
+    <p>JSON and Markdown matrices compare every engine on the same suite and scale.</p>
+  </div>
+</div>
+
+</div>
+
+<div class="landing-section">
+
+## Explore the documentation
+
+<CardGrid>
+  <LinkCard
+    title="Overview"
+    href="/cqf-bench/overview/"
+    description="What CQF Bench is, who it's for, and how a run is structured."
+  />
+  <LinkCard
+    title="Engine guides"
+    href="/cqf-bench/engines/"
+    description="HAPI CQF Ruler today; add your own engine or Mercury later."
+  />
+  <LinkCard
+    title="Compare engines"
+    href="/cqf-bench/guides/compare-engines/"
+    description="Run the same suite against multiple servers and read the matrices."
+  />
+  <LinkCard
+    title="Scenario catalog"
+    href="/cqf-bench/reference/scenario-catalog/"
+    description="Every CONF and CAP scenario and what it tests."
+  />
+</CardGrid>
+
+</div>
+
+<div class="landing-section">
+
+## Open source
+
+CQF Bench is **Apache-2.0**. Contributions welcome — scenarios, adapters, docs, and scoring improvements.
+
+<CardGrid>
+  <Card title="Contribute" icon="pen">
+    See the [contributing guide](/cqf-bench/contributing/) and open a [GitHub issue](https://github.com/carreraGroup/cqf-bench/issues).
+  </Card>
+  <Card title="Reference docs" icon="open-book">
+    [CLI](/cqf-bench/reference/cli/), [configuration](/cqf-bench/reference/configuration/), and [output format](/cqf-bench/reference/output-format/).
+  </Card>
+</CardGrid>
+
+</div>
