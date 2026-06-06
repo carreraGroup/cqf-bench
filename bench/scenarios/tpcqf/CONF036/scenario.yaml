@@ -35,4 +35,5 @@ expected_file: expected.yaml
 cql_file: scenario.cql
 cql_entrypoint: ConformanceTrue
 query:
-  measure: Measure/Test|1.0.0
+  url: http://example.com/Measure/Test
+  version: '1.0.0'
