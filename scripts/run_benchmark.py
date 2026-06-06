@@ -574,6 +574,7 @@ def preload_scenario_cql_libraries(engine: dict[str, Any], scenarios: list[dict[
 
 
 def build_measure_resource(measure_id: str, version: str) -> dict[str, Any]:
+    library_id = "Test" if measure_id == "Test" else measure_id
     return {
         "resourceType": "Measure",
         "id": measure_id,
@@ -581,7 +582,7 @@ def build_measure_resource(measure_id: str, version: str) -> dict[str, Any]:
         "name": measure_id,
         "version": version,
         "status": "active",
-        "library": [f"http://example.com/Library/{measure_id}|{version}"],
+        "library": [f"http://example.com/Library/{library_id}|{version}"],
         "scoring": {
             "coding": [
                 {
@@ -682,6 +683,15 @@ def preload_required_measures(engine: dict[str, Any], scenarios: list[dict[str, 
     fhir_base = engine.get("fhir_base_path", engine.get("cqf_base_path", ""))
     headers = expand_headers(engine.get("headers", {}))
     for measure_id, version in sorted(refs):
+        library_id = "Test" if measure_id == "Test" else measure_id
+        library_url = f"{base_url}{fhir_base}/Library/{library_id}"
+        library_payload = build_library_resource(library_id, version)
+        lib_status, _, lib_raw = request_once("PUT", library_url, headers, library_payload, timeout)
+        if lib_status // 100 == 2:
+            print(f"preload library {library_id}|{version}: status={lib_status}")
+        else:
+            msg = lib_raw[:240].replace("\n", " ")
+            print(f"preload library {library_id}|{version}: status={lib_status} body={msg}")
         url = f"{base_url}{fhir_base}/Measure/{measure_id}"
         payload = build_measure_resource(measure_id, version)
         status, _, raw = request_once("PUT", url, headers, payload, timeout)

@@ -37,5 +37,7 @@ cql_entrypoint: ConformanceTrue
 payload:
   resourceType: Parameters
   parameter:
-  - name: measure
-    valueCanonical: Measure/Test|1.0.0
+  - name: url
+    valueUri: http://example.com/Measure/Test
+  - name: version
+    valueString: '1.0.0'
