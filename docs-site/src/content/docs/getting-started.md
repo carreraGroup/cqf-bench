@@ -63,37 +63,36 @@ python scripts/generate_scenario_data.py \
   --suite bench/scenarios/tpcqf/suite.yaml \
   --out data/generated/scenario_payloads_s100_sel20 \
   --scale 100 \
-  --selectivity 0.2 \
-  --phase both
+  --selectivity 0.2
 ```
 
+- `--suite` points at the folder-based benchmark definition (`suite.yaml` plus
+  scenario folders); it drives mutators, FSH templates, and payload shapes.
 - `--scale` is the number of synthetic patients.
 - `--selectivity` is the fraction of generated data that should match the
   scenario logic (default `0.2`).
-- `--phase both` generates both preload (`setup`) and request-time (`main`)
-  payloads.
+- The output directory receives **all** `setup` and `main` JSON for every
+  scenario, plus `dataset.json` (suite path, scale, selectivity). See
+  `bench/DATA_LAYOUT.md` in the repository for the full tree layout.
 
 ### 4.2 Load setup data into the engine
 
 ```bash
 python scripts/load_test_data.py \
   --engines bench/config/local.engines.yaml \
-  --suite bench/scenarios/tpcqf/suite.yaml \
-  --scale 100 \
   --generated-data-root data/generated/scenario_payloads_s100_sel20 \
   --filter-engine hapi-cqf-ruler-local
 ```
 
-This preloads required libraries, measures, and valuesets, and loads the
-generated setup data for preload (`-P`) scenarios.
+This preloads required libraries, measures, and valuesets, then loads **all**
+generated setup bundles from that tree. `dataset.json` supplies `suite_file`
+and `scale` when you omit `--suite` / `--scale`.
 
 ### 4.3 Execute the suite
 
 ```bash
 python scripts/execute_tests.py \
   --engines bench/config/local.engines.yaml \
-  --suite bench/scenarios/tpcqf/suite.yaml \
-  --scale 100 \
   --generated-data-root data/generated/scenario_payloads_s100_sel20 \
   --filter-engine hapi-cqf-ruler-local \
   --out results/tpcqf_s100_sel20_execute
@@ -103,22 +102,32 @@ Inline (`CAP###-I`) scenarios inject their generated `main` payloads from
 `--generated-data-root` at request time. `execute_tests.py` defaults to
 `--runs 5`, repeating each scenario for averaged timing.
 
-## Alternative: one-shot run
+## Alternative: `run_benchmark.py` for every phase
 
-If you would rather run generate-less and let the harness do setup and execution
-in a single invocation, use `run_benchmark.py` with `--run-phase full`:
+The same three phases map directly to **`--run-phase`** (required on
+`run_benchmark.py`):
 
 ```bash
-python scripts/run_benchmark.py \
-  --engines bench/config/local.engines.yaml \
+python scripts/run_benchmark.py --run-phase generate \
   --suite bench/scenarios/tpcqf/suite.yaml \
   --scale 100 \
+  --selectivity 0.2 \
+  --generated-data-root data/generated/smoke_s100_sel20
+
+python scripts/run_benchmark.py --run-phase load \
+  --engines bench/config/local.engines.yaml \
+  --generated-data-root data/generated/smoke_s100_sel20 \
   --filter-engine hapi-cqf-ruler-local
+
+python scripts/run_benchmark.py --run-phase execute \
+  --engines bench/config/local.engines.yaml \
+  --generated-data-root data/generated/smoke_s100_sel20 \
+  --filter-engine hapi-cqf-ruler-local \
+  --out results/smoke_s100_sel20
 ```
 
-`run_benchmark.py` also accepts `--run-phase load` and `--run-phase execute` to
-run the phases independently, and `--generated-data-root` to consume
-pre-generated payloads.
+`generate` ignores `--engines`. `load` / `execute` read `dataset.json` when
+`--suite` / `--scale` are omitted.
 
 ## Read the report
 

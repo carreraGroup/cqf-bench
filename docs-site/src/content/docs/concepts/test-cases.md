@@ -127,7 +127,6 @@ setup:
     success: [200, 201]
     unsupported: [400, 422]
     fail: []
-restart_after_setup: true
 ```
 
 The CAP catalog exercises representative CQL constructs: counting retrieves,

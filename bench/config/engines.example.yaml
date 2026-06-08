@@ -1,12 +1,13 @@
 # Example engine config (template).
 #
-# The first enabled engine, hapi-cqf-ruler-local, is the public reference engine
-# and is fully runnable from a public Docker image. See GETTING_STARTED.md.
+# This template lists the two engines CQF Bench documents with concrete setup:
+# - hapi-cqf-ruler-local — public Docker image (Alphora CQF Ruler); default
+#   for GETTING_STARTED and smoke runs.
+# - mercury-local — local Mercury benchmark image; ships disabled until you
+#   build `mercury-cqf-bench:latest` and set `disabled: false`.
 #
-# Engines marked `disabled: true` are examples/targets that require a private
-# image, a reachable remote endpoint, or an adapter that is not yet turnkey.
-# Inclusion of an engine here does not imply vendor endorsement, official
-# support, certification, or published benchmark results.
+# For any other FHIR CQF endpoint, copy this file to `local.engines.yaml` and add
+# a block (often with `adapter: generic-cqf`); see docs under "Add an engine".
 #
 # Copy to bench/config/local.engines.yaml and edit for your environment.
 engines:
@@ -33,26 +34,6 @@ engines:
     cpuset: "0-3"
     env:
       hapi.fhir.cql_enabled: 'true'
-    health_path: /fhir/metadata
-- name: blaze-local
-  adapter: generic-cqf
-  base_url: http://localhost:8082
-  cqf_base_path: /fhir
-  data_base_path: /fhir
-  fhir_base_path: /fhir
-  headers: {}
-  capabilities:
-  - resident_data_load
-  - resident_execute
-  - system_cql
-  - inline_bundle_execute
-  docker:
-    enabled: true
-    image: samply/blaze:latest
-    container_name: blaze-cqf-bench
-    host_port: 8082
-    container_port: 8080
-    env: {}
     health_path: /fhir/metadata
 - name: mercury-local
   adapter: mercury-cqf
@@ -83,82 +64,3 @@ engines:
     cpuset: "0-3"
     env: {}
     health_path: /cqf/metadata
-- name: firely-runtime
-  adapter: generic-cqf
-  base_url: https://example-firely-host
-  cqf_base_path: /cqf
-  data_base_path: /fhir
-  headers:
-    Authorization: Bearer ${ENGINE_BEARER_TOKEN}
-  capabilities:
-  - resident_data_load
-  - resident_execute
-  disabled: true
-  disabled_reason: Example remote target; set a reachable endpoint and token before enabling.
-  docker:
-    enabled: false
-    image: ''
-    container_name: ''
-    host_port: 0
-    container_port: 0
-    env: {}
-    health_path: /cqf/metadata
-- name: smile-cdr
-  adapter: smile-cdr
-  base_url: https://example-smile-host
-  cqf_base_path: /fhir
-  data_base_path: /fhir
-  headers:
-    Authorization: Bearer ${SMILE_BEARER_TOKEN}
-  capabilities:
-  - resident_data_load
-  - resident_execute
-  disabled: true
-  disabled_reason: Example remote target; set a reachable endpoint and token before enabling.
-  docker:
-    enabled: false
-    image: ''
-    container_name: ''
-    host_port: 0
-    container_port: 0
-    env: {}
-    health_path: /fhir/metadata
-- name: ncqa-firely-runtime
-  adapter: generic-cqf
-  base_url: https://example-ncqa-firely-host
-  cqf_base_path: /cqf
-  data_base_path: /fhir
-  headers:
-    Authorization: Bearer ${NCQA_FIRELY_BEARER_TOKEN}
-  capabilities:
-  - resident_data_load
-  - resident_execute
-  disabled: true
-  disabled_reason: No public NCQA/Firely docker image known; configure reachable endpoint
-    and token.
-  docker:
-    enabled: false
-    image: ''
-    container_name: ''
-    host_port: 0
-    container_port: 0
-    env: {}
-    health_path: /cqf/metadata
-- name: google-cql
-  adapter: google-cql
-  base_url: http://localhost:8090
-  cqf_base_path: ''
-  data_base_path: ''
-  headers: {}
-  capabilities: []
-  disabled: true
-  disabled_reason: google/cql is not a CQF REST server; requires wrapper service adapter
-    before CQF benchmarking.
-  docker:
-    enabled: false
-    image: ''
-    container_name: ''
-    host_port: 0
-    container_port: 0
-    env: {}
-    health_path: /healthz

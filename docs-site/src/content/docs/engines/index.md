@@ -29,7 +29,7 @@ Step-by-step setup for engines we document explicitly:
 | --- | --- | --- | --- |
 | **HAPI CQF Ruler** | [HAPI CQF Ruler](/cqf-bench/engines/hapi-cqf-ruler/) | `hapi-cqf-ruler` | Open-source Docker image; includes an engine-specific observed-behavior section for known local benchmark caveats. |
 | **Mercury** | [Mercury](/cqf-bench/engines/mercury/) | `mercury-cqf` | Local image workflow with adapter-specific request shaping and engine-specific observed behavior notes. |
-| Blaze, Firely, Smile CDR, others | [Add an engine](/cqf-bench/guides/add-an-engine/) | `generic-cqf` or product adapter | Template entries in `engines.example.yaml`; configure your endpoint and capabilities. |
+| **Other CQF servers** | [Add an engine](/cqf-bench/guides/add-an-engine/) | `generic-cqf` or a product adapter | Add your own YAML block; tune `capabilities` to match what the server supports. |
 
 ## Bring your own engine
 
@@ -52,8 +52,9 @@ python scripts/manage_engines.py bootstrap \
   --engines bench/config/local.engines.yaml \
   --engine hapi-cqf-ruler-local
 
-# Run against one engine
+# Run against one engine (after generate + load, or with data already resident)
 python scripts/run_benchmark.py \
+  --run-phase execute \
   --engines bench/config/local.engines.yaml \
   --suite bench/scenarios/tpcqf/suite.yaml \
   --scale 100 \

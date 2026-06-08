@@ -15,8 +15,9 @@ see [HAPI CQF Ruler](/cqf-bench/engines/hapi-cqf-ruler/).
 
 Your engines config (`bench/config/local.engines.yaml`) can declare any number of
 engines. Each names its adapter, base URL, base paths, capabilities, and (for
-local containers) Docker settings. The shipped template includes entries for
-Mercury, HAPI CQF Ruler, Blaze, Firely-style runtimes, and Smile CDR.
+local containers) Docker settings. The shipped template (`engines.example.yaml`)
+includes **HAPI CQF Ruler** and **Mercury**; enable Mercury only after you have a
+local benchmark image.
 
 ```yaml
 engines:
@@ -35,20 +36,23 @@ engines:
       container_port: 8080
       health_path: /fhir/metadata
 
-  - name: blaze-local
-    adapter: generic-cqf
-    base_url: http://localhost:8082
-    cqf_base_path: /fhir
+  # mercury-local ships disabled in the template; set disabled: false after
+  # building mercury-cqf-bench:latest (see Engine guides → Mercury).
+  - name: mercury-local
+    adapter: mercury-cqf
+    base_url: http://localhost:8080
+    cqf_base_path: /cqf
     fhir_base_path: /fhir
-    data_base_path: /fhir
-    capabilities: [resident_data_load, resident_execute, system_cql, inline_bundle_execute]
+    data_base_path: /api
+    disabled: true
+    capabilities: [resident_data_load, resident_execute, system_cql, inline_bundle_execute, library_write_once_execute_many]
     docker:
       enabled: true
-      image: samply/blaze:latest
-      container_name: blaze-cqf-bench
-      host_port: 8082
+      image: mercury-cqf-bench:latest
+      container_name: mercury-cqf-bench
+      host_port: 8080
       container_port: 8080
-      health_path: /fhir/metadata
+      health_path: /cqf/metadata
 ```
 
 See the [Configuration Reference](/cqf-bench/reference/configuration/) for every
@@ -60,14 +64,19 @@ selection.
 ```bash
 python scripts/manage_engines.py bootstrap \
   --engines bench/config/local.engines.yaml \
-  --engine hapi-cqf-ruler-local \
-  --engine blaze-local
+  --engine hapi-cqf-ruler-local
+
+# Optional second engine — enable mercury-local in YAML first, then:
+# python scripts/manage_engines.py bootstrap \
+#   --engines bench/config/local.engines.yaml \
+#   --engine mercury-local
 
 python scripts/manage_engines.py health \
   --engines bench/config/local.engines.yaml
 ```
 
-Omitting `--engine` applies the action to every Docker-enabled engine.
+Omitting `--engine` applies the action to every Docker-enabled engine that is not
+marked `disabled: true`.
 
 ## 3. Use identical, fair inputs
 
@@ -78,7 +87,7 @@ load and execute against each engine from that same generated root:
 python scripts/generate_scenario_data.py \
   --suite bench/scenarios/tpcqf/suite.yaml \
   --out data/generated/cmp_s1000_sel20 \
-  --scale 1000 --selectivity 0.2 --phase both
+  --scale 1000 --selectivity 0.2
 ```
 
 Keep `--scale`, `--selectivity`, `--timeout`, `--concurrency`, and `--score-mode`
@@ -92,9 +101,6 @@ inputs.
   memory limits).
 - **Warmup** — the suite issues warmup requests before timing; keep
   `warmup_requests` consistent.
-- **Restarts** — preload (`-P`) scenarios may restart the engine before timed
-  execution (`restart_after_setup`) to measure cold resident-data performance
-  consistently.
 
 ## 4. Run all engines in one invocation
 
@@ -105,13 +111,14 @@ single report with every engine as a column group:
 ```bash
 python scripts/execute_tests.py \
   --engines bench/config/local.engines.yaml \
-  --suite bench/scenarios/tpcqf/suite.yaml \
-  --scale 1000 \
   --generated-data-root data/generated/cmp_s1000_sel20 \
   --filter-engine hapi-cqf-ruler-local \
-  --filter-engine blaze-local \
+  --filter-engine mercury-local \
   --out results/cmp_s1000_sel20
 ```
+
+`mercury-local` is disabled in the default template; remove `disabled` (and
+bootstrap the image) before filtering both engines in one run.
 
 ## 5. Read the side-by-side matrices
 
@@ -121,7 +128,7 @@ you can scan a row across engines:
 ```markdown
 ## Capability + Performance Matrix
 
-| Scenario | Intent | hapi Result | hapi Time | hapi Note | blaze Result | blaze Time | blaze Note |
+| Scenario | Intent | hapi Result | hapi Time | hapi Note | mercury Result | mercury Time | mercury Note |
 |---|---|---|---|---|---|---|---|
 | CAP001-P | Count retrieve all of one resource (preload) | PASS | 47.0ms |  | PASS | 31.2ms |  |
 | CAP006-I | Retrieve with with-clause join (inline) | PASS | 88.1ms |  | FAIL |  | incorrect result; HTTP 200 |

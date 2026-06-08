@@ -31,14 +31,14 @@ source .venv/bin/activate
 python scripts/generate_scenario_data.py \
   --suite bench/scenarios/tpcqf/suite.yaml \
   --out data/generated/smoke_s100_sel20 \
-  --scale 100 --selectivity 0.2 --phase both
+  --scale 100 --selectivity 0.2
 python scripts/load_test_data.py \
-  --engines bench/config/local.engines.yaml --suite bench/scenarios/tpcqf/suite.yaml \
-  --scale 100 --generated-data-root data/generated/smoke_s100_sel20 \
+  --engines bench/config/local.engines.yaml \
+  --generated-data-root data/generated/smoke_s100_sel20 \
   --filter-engine hapi-cqf-ruler-local
 python scripts/execute_tests.py \
-  --engines bench/config/local.engines.yaml --suite bench/scenarios/tpcqf/suite.yaml \
-  --scale 100 --generated-data-root data/generated/smoke_s100_sel20 \
+  --engines bench/config/local.engines.yaml \
+  --generated-data-root data/generated/smoke_s100_sel20 \
   --filter-engine hapi-cqf-ruler-local \
   --out results/smoke_s100_sel20
 ```
@@ -103,17 +103,17 @@ python scripts/generate_scenario_data.py \
   --suite bench/scenarios/tpcqf/suite.yaml \
   --out data/generated/scenario_payloads_s100_sel20 \
   --scale 100 \
-  --selectivity 0.2 \
-  --phase both
+  --selectivity 0.2
 ```
+
+This also writes `dataset.json` in that directory so **load** / **execute** can
+omit `--suite` and `--scale` when you point at the same path.
 
 ### 3.2 Load generated setup data into engine (preload only)
 
 ```bash
 python scripts/load_test_data.py \
   --engines bench/config/local.engines.yaml \
-  --suite bench/scenarios/tpcqf/suite.yaml \
-  --scale 100 \
   --generated-data-root data/generated/scenario_payloads_s100_sel20 \
   --filter-engine hapi-cqf-ruler-local
 ```
@@ -125,8 +125,6 @@ Inline tests (`CAP###-I`) will inject generated `main` payloads from `--generate
 ```bash
 python scripts/execute_tests.py \
   --engines bench/config/local.engines.yaml \
-  --suite bench/scenarios/tpcqf/suite.yaml \
-  --scale 100 \
   --generated-data-root data/generated/scenario_payloads_s100_sel20 \
   --filter-engine hapi-cqf-ruler-local \
   --out results/tpcqf_s100_sel20_execute

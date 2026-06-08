@@ -27,7 +27,7 @@ Built-in adapters:
 
 | Adapter | Intended engine |
 | --- | --- |
-| `generic-cqf` | A baseline CQF server with no special handling (also used for Blaze, Firely-style endpoints). |
+| `generic-cqf` | A baseline CQF server with no special handling. |
 | `mercury-cqf` | Mercury — library/measure canonical normalization, data bundle reshaping. |
 | `hapi-cqf-ruler` | HAPI CQF Ruler — GET→POST promotion, instance-level operation rewriting. |
 | `smile-cdr` | Smile CDR. |

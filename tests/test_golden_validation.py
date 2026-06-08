@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from run_benchmark import (  # noqa: E402
+    ADAPTERS,
     _payload_from_data_config,
     _cleanup_inline_main_payloads,
     _cleanup_setup_target,
@@ -26,6 +27,31 @@ from run_benchmark import (  # noqa: E402
 
 
 class GoldenValidationTests(unittest.TestCase):
+    def test_mercury_adapter_strips_library_for_instance_library_evaluate(self) -> None:
+        adapter = ADAPTERS["mercury-cqf"]
+        scenario = {
+            "path": "/Library/BenchCAP001I/$evaluate",
+            "query": {
+                "library": "Library/BenchCAP001I|1.0.0",
+                "subject": "Patient/{patient_id}",
+                "expression": "CountAllCondition",
+            },
+        }
+        adapted_query = adapter.adapt_query(scenario, {"library": "Library/BenchCAP001I|1.0.0", "subject": "Patient/p1", "expression": "CountAllCondition"})
+        self.assertNotIn("library", adapted_query)
+
+        payload = {
+            "resourceType": "Parameters",
+            "parameter": [
+                {"name": "library", "valueCanonical": "Library/BenchCAP001I|1.0.0"},
+                {"name": "subject", "valueString": "Patient/p1"},
+                {"name": "expression", "valueString": "CountAllCondition"},
+            ],
+        }
+        adapted_payload = adapter.adapt_payload(scenario, payload, phase="main")
+        names = [p.get("name") for p in adapted_payload.get("parameter", [])]
+        self.assertNotIn("library", names)
+
     def test_compute_mix_counts_default_plan(self) -> None:
         plan = load_config(ROOT / "bench/scenarios/tpcqf/CAP001-P/mutator.yaml")
         counts = compute_mix_counts(plan, 0.2)

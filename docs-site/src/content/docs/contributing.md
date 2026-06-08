@@ -56,7 +56,7 @@ To avoid regenerating setup data during runs, pre-generate payloads:
 python scripts/generate_scenario_data.py \
   --suite bench/scenarios/tpcqf/suite.yaml \
   --out data/generated/scenario_payloads \
-  --scale 1000 --phase setup
+  --scale 1000
 ```
 
 See [Test Cases](/cqf-bench/concepts/test-cases/) and the

@@ -44,18 +44,14 @@ it here and describe how it maps to `results/<run_id>.json` in this repo.
 python scripts/generate_scenario_data.py \
   --suite bench/scenarios/tpcqf/suite.yaml \
   --out data/generated/pub_s1000_sel20 \
-  --scale 1000 --selectivity 0.2 --phase both
+  --scale 1000 --selectivity 0.2
 
 python scripts/load_test_data.py \
   --engines bench/config/local.engines.yaml \
-  --suite bench/scenarios/tpcqf/suite.yaml \
-  --scale 1000 \
   --generated-data-root data/generated/pub_s1000_sel20
 
 python scripts/execute_tests.py \
   --engines bench/config/local.engines.yaml \
-  --suite bench/scenarios/tpcqf/suite.yaml \
-  --scale 1000 \
   --generated-data-root data/generated/pub_s1000_sel20 \
   --out results/pub_s1000_sel20 \
   --runs 5
@@ -70,10 +66,10 @@ docker image inspect alphora/cqf-ruler:latest --format '{{ index .RepoDigests 0 
 ## Note on data and privacy
 
 All CQF Bench fixtures are **synthetic and generated** — no patient data is
-involved. The generated data root is reproducible from `--scale` and
-`--selectivity`, so you generally don't need to publish the data itself; the
-generation command is enough. If you do attach data, confirm it contains only
-generated synthetic resources.
+involved. The generated data root is reproducible from `--scale`,
+`--selectivity`, and the suite revision, and is described by `dataset.json`; you
+generally don't need to publish the bytes if you publish those parameters. If you
+do attach data, confirm it contains only generated synthetic resources.
 
 By default the repository gitignores `results/` and `data/generated/`, so you
 publish results deliberately rather than committing them by accident.

@@ -69,8 +69,7 @@ Pre-generate setup payloads when useful:
 scripts/generate_scenario_data.py \
   --suite bench/scenarios/tpcqf/suite.yaml \
   --out data/generated/scenario_payloads \
-  --scale 1000 \
-  --phase setup
+  --scale 1000
 ```
 
 Then set `input_bundle_path` or `input_bundle_dir` in scenario `data.yaml`.

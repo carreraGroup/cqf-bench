@@ -34,8 +34,8 @@ Each run writes the core report pair plus a comparison bundle to the output dire
   "timeout_seconds": 30,
   "score_mode": "compat",                   // compat | strict-2xx
   "repetitions": 1,
-  "run_phase": "full",                      // full | load | execute
-  "generated_data_root": null,              // path, if pre-generated payloads were used
+  "run_phase": "execute",                   // execute (reports); generate/load omit this artifact
+  "generated_data_root": null,              // path; directory may include dataset.json for load/execute defaults
   "started_epoch": 1700000000.0,
   "started_utc": "2026-01-01T00:00:00+00:00",
   "started_local": "…",

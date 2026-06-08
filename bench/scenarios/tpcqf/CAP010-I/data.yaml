@@ -1,6 +1,7 @@
 selectivity_source: scenario_or_suite_default
 main:
   mode: inline
+  assembly_file: assembly.yaml
   generator:
     type: fsh_mutation
     match_fsh: match.fsh

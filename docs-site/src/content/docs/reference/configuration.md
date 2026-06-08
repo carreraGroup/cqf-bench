@@ -13,7 +13,7 @@ The engines config (template: `bench/config/engines.example.yaml`; local:
 ```yaml
 engines:
   - name: hapi-cqf-ruler-local      # unique engine name (used in --filter-engine and reports)
-    adapter: hapi-cqf-ruler         # adapter class: generic-cqf | mercury-cqf | hapi-cqf-ruler | smile-cdr | google-cql
+    adapter: hapi-cqf-ruler         # adapter class: hapi-cqf-ruler | mercury-cqf | generic-cqf (see Engine Adapters)
     base_url: http://localhost:8081 # scheme + host + port
     cqf_base_path: /fhir            # base path for CQF operations
     fhir_base_path: /fhir           # base path for FHIR resource writes (libraries, valuesets, …)
@@ -156,7 +156,6 @@ setup:                         # preload flow (Type 2 -P)
     success: [200, 201]
     unsupported: [400, 422]
     fail: []
-restart_after_setup: true      # restart engine before timed execution
 ```
 
 `{patient_id}` is templated per synthetic patient. `cql_library_id` /

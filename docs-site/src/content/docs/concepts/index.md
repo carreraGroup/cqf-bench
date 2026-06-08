@@ -38,8 +38,9 @@ carries:
 - optional `docker` settings for local container management,
 - optional `disabled` / `disabled_reason` flags.
 
-Candidate engines include Mercury, HAPI CQF Ruler, Firely-based runtimes, Smile
-CDR, LinuxForHealth FHIR, and Blaze FHIR.
+Documented first-class targets are **HAPI CQF Ruler** (public image) and
+**Mercury** (local benchmark image). Any other FHIR Clinical Reasoning endpoint
+can be added with a config block — see [Add an engine](/cqf-bench/guides/add-an-engine/).
 
 ## Capability
 
@@ -125,8 +126,9 @@ group per engine. See [Results](/cqf-bench/concepts/results/) and the
 
 | Phase | Script | What it does |
 | --- | --- | --- |
-| **Generate** | `generate_scenario_data.py` | Produces deterministic payloads from FSH templates + mutator. |
-| **Load** | `load_test_data.py` (or `run_benchmark.py --run-phase load`) | Preloads libraries, measures, valuesets, and setup data. |
-| **Execute** | `execute_tests.py` (or `run_benchmark.py --run-phase execute`) | Runs scenarios, scores outcomes, records timing. |
+| **Generate** | `generate_scenario_data.py` or `run_benchmark.py --run-phase generate` | Writes the full payload tree + `dataset.json` for one suite/scale/selectivity. |
+| **Load** | `load_test_data.py` (or `run_benchmark.py --run-phase load`) | One pass: preloads shared artifacts and **all** setup bundles from the tree (`dataset.json` supplies suite + scale when omitted). |
+| **Execute** | `execute_tests.py` (or `run_benchmark.py --run-phase execute`) | HTTP benchmark + report only; reads `main` payloads from disk when provided. |
 
-`run_benchmark.py --run-phase full` does load + execute in one invocation.
+There is no combined “full” mode: run **generate → load → execute** (or use the
+wrapper scripts for the same split). Layout reference: `bench/DATA_LAYOUT.md`.

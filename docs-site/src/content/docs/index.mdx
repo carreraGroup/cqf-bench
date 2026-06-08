@@ -91,6 +91,7 @@ scripts/bootstrap_python_env.sh --recreate
 source .venv/bin/activate
 
 python scripts/run_benchmark.py \
+  --run-phase execute \
   --engines bench/config/local.engines.yaml \
   --suite bench/scenarios/tpcqf/suite.yaml \
   --scale 100 \
@@ -136,7 +137,7 @@ Reports: `results/<run_id>.json` and `results/<run_id>.md`.
   </div>
   <div class="landing-pill">
     <strong>Engine adapters</strong>
-    <p>One scenario definition runs on HAPI Ruler, Blaze, Mercury, Firely, Smile CDR, and your BYO endpoint.</p>
+    <p>One scenario definition runs on HAPI CQF Ruler, Mercury, or other FHIR CQF servers via adapters.</p>
   </div>
   <div class="landing-pill">
     <strong>Side-by-side reports</strong>

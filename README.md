@@ -109,20 +109,15 @@ This framing helps readers distinguish between:
 - the **benchmark tool** being public and usable now, and
 - broader **scalability claims** that require additional benchmark campaigns.
 
-## Candidate / Example Engine Targets
+## Documented engine targets
 
-These are possible benchmark targets or adapter examples. Inclusion does **not**
-imply vendor endorsement, official support, certification, or published benchmark
-results. HAPI CQF Ruler is the public reference engine and the default runnable
-path; the others require a private image, a reachable remote endpoint, or an
-adapter that is not yet turnkey (see `bench/config/engines.example.yaml`).
+CQF Bench ships a template engines file with **HAPI CQF Ruler** (public Docker
+image; default runnable path) and **Mercury** (local benchmark image; disabled
+until you build it). Inclusion does **not** imply vendor endorsement, official
+support, certification, or published benchmark results.
 
-- HAPI CQF Ruler (public reference / default)
-- Blaze FHIR
-- Mercury (requires a private local image)
-- Firely-based runtimes (commercial engine)
-- Smile CDR (commercial engine)
-- LinuxForHealth FHIR
+For any other CQF-capable server, add an entry to `local.engines.yaml` (see
+`bench/config/engines.example.yaml`); walkthrough: [Add an engine](https://carreraGroup.github.io/cqf-bench/guides/add-an-engine/) on the documentation site.
 
 ## Maintainers
 
@@ -135,6 +130,7 @@ For security issues, see [SECURITY.md](SECURITY.md) (email the maintainer).
 
 - **[Documentation site](https://carreraGroup.github.io/cqf-bench/)** — guides, concepts, and reference (source in [`docs-site/`](docs-site/))
 - [GETTING_STARTED.md](GETTING_STARTED.md)
+- [bench/DATA_LAYOUT.md](bench/DATA_LAYOUT.md) — generated payload tree + `dataset.json`
 - [catalog.md](catalog.md)
 - [BENCHMARK_TESTS.md](BENCHMARK_TESTS.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md)

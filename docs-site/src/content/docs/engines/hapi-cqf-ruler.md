@@ -101,6 +101,7 @@ With Python env active (`scripts/bootstrap_python_env.sh`):
 
 ```bash
 python scripts/run_benchmark.py \
+  --run-phase execute \
   --engines bench/config/local.engines.yaml \
   --suite bench/scenarios/tpcqf/suite.yaml \
   --scale 100 \
@@ -146,8 +147,8 @@ limits in `local.engines.yaml`; `manage_engines.py` now applies `cpus`,
 | Capability `FAIL` with HTTP 200 | CQL correctness — see scenario `expected.yaml`, not adapter config. |
 | Pull errors | Registry access; try `docker pull alphora/cqf-ruler:latest` manually. |
 
-Port conflict with another template engine? Default ports: Mercury `8080`, HAPI
-`8081`, Blaze `8082` — only run simultaneous containers if each port is free.
+Port conflict with another engine? Default ports in the template: Mercury
+`8080`, HAPI CQF Ruler `8081` — only run simultaneous containers if each port is free.
 
 ## Observed behavior (May 28, 2026)
 
@@ -166,7 +167,7 @@ implementation observations, not framework rules.
 
 For reproducible comparisons, record:
 
-1. exact suite/run mode (`full` vs `load`/`execute`),
+1. exact suite phases (`generate` / `load` / `execute`) and whether payloads came from `--generated-data-root`,
 2. scale/concurrency/timeout,
 3. image tag and digest,
 4. report JSON artifacts.

@@ -67,6 +67,7 @@ def validate_scenario_dir(base_dir: Path, scenario_id: str, errors: list[str]) -
             else:
                 data_cfg = load_config(p)
                 setup = data_cfg.get("setup")
+                main = data_cfg.get("main")
                 if isinstance(setup, dict):
                     gen = setup.get("generator")
                     if isinstance(gen, dict) and str(gen.get("type", "")) == "fsh_mutation":
@@ -74,6 +75,12 @@ def validate_scenario_dir(base_dir: Path, scenario_id: str, errors: list[str]) -
                             val = gen.get(key)
                             if not isinstance(val, str) or not (scenario_dir / val).exists():
                                 errors.append(f"{scenario_id}: setup.generator.{key} missing or file not found")
+                if isinstance(main, dict) and str(main.get("mode", "")) == "inline":
+                    assembly_file = main.get("assembly_file")
+                    if not isinstance(assembly_file, str):
+                        errors.append(f"{scenario_id}: inline scenario must define main.assembly_file")
+                    elif not (scenario_dir / assembly_file).exists():
+                        errors.append(f"{scenario_id}: missing {assembly_file}")
 
     expected_file = scenario.get("expected_file")
     if isinstance(expected_file, str):

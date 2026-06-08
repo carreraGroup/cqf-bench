@@ -39,4 +39,3 @@ setup:
     - 400
     - 422
     fail: []
-restart_after_setup: true

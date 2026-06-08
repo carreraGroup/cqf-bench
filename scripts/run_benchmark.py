@@ -24,6 +24,8 @@ from typing import Any
 
 from config_io import load_config
 
+DEFAULT_BENCHMARK_SUITE = Path("bench/scenarios/tpcqf/suite.yaml")
+
 
 class EngineAdapter:
     name = "generic-cqf"
@@ -59,6 +61,9 @@ class GenericCqfAdapter(EngineAdapter):
 
 class MercuryCqfAdapter(EngineAdapter):
     name = "mercury-cqf"
+
+    def _is_instance_library_evaluate(self, path: str) -> bool:
+        return bool(re.fullmatch(r"/Library/[^/]+/\$evaluate", path))
 
     def _library_id_from_scenario(self, scenario: dict[str, Any], payload: dict[str, Any] | None = None) -> str | None:
         query_lib = scenario.get("query", {}).get("library") if isinstance(scenario.get("query"), dict) else None
@@ -101,7 +106,7 @@ class MercuryCqfAdapter(EngineAdapter):
                 canonical = self._library_canonical_from_measure_ref(query.get("measure"))
                 if canonical is not None:
                     query["library"] = canonical
-        if scenario.get("path") == "/Library/$evaluate":
+        if scenario.get("path") == "/Library/$evaluate" or self._is_instance_library_evaluate(str(scenario.get("path", ""))):
             query = dict(query)
             query.pop("library", None)
         return query
@@ -123,7 +128,11 @@ class MercuryCqfAdapter(EngineAdapter):
                 "type": "collection",
                 "entry": [{"resource": e.get("resource", {})} for e in entries],
             }
-        if phase == "main" and scenario.get("path") == "/Library/$evaluate" and payload.get("resourceType") == "Parameters":
+        if (
+            phase == "main"
+            and (scenario.get("path") == "/Library/$evaluate" or self._is_instance_library_evaluate(str(scenario.get("path", ""))))
+            and payload.get("resourceType") == "Parameters"
+        ):
             out = dict(payload)
             library_id = self._library_id_from_scenario(scenario, payload)
             params = []
@@ -1294,30 +1303,179 @@ def generate_bundle_from_fsh_mutator(
 
     bundle = {"resourceType": "Bundle", "type": "transaction", "entry": entries}
     output_mode = str(phase_cfg.get("output_mode", "bundle"))
+    return assemble_inline_output(bundle, scenario, patient_id, output_mode)
+
+
+def _query_params_from_spec(spec: dict[str, Any], patient_id: str) -> list[dict[str, Any]]:
+    query = spec.get("query") if isinstance(spec.get("query"), dict) else {}
+    rendered = {k: render_obj(v, patient_id) for k, v in query.items()}
+    params: list[dict[str, Any]] = []
+    for name, value in rendered.items():
+        if name in {"library", "measure"}:
+            params.append({"name": name, "valueCanonical": str(value)})
+        elif name in {"periodStart", "periodEnd"}:
+            params.append({"name": name, "valueDate": str(value)})
+        elif isinstance(value, bool):
+            params.append({"name": name, "valueBoolean": value})
+        else:
+            params.append({"name": name, "valueString": str(value)})
+    return params
+
+
+def _bundle_as_collection(bundle: dict[str, Any]) -> dict[str, Any]:
+    collection_entries = [{"resource": e.get("resource", {})} for e in bundle.get("entry", []) if isinstance(e, dict)]
+    return {
+        "resourceType": "Bundle",
+        "type": "collection",
+        "entry": collection_entries,
+    }
+
+
+def assemble_inline_output(
+    bundle: dict[str, Any],
+    scenario: dict[str, Any],
+    patient_id: str,
+    output_mode: str,
+) -> dict[str, Any]:
     if output_mode == "parameters_data":
-        collection_entries = [{"resource": e.get("resource", {})} for e in entries if isinstance(e, dict)]
-        query = scenario.get("query") if isinstance(scenario.get("query"), dict) else {}
-        rendered = {k: render_obj(v, patient_id) for k, v in query.items()}
-        params: list[dict[str, Any]] = []
-        for name, value in rendered.items():
-            if name in {"library", "measure"}:
-                params.append({"name": name, "valueCanonical": str(value)})
-            elif name in {"periodStart", "periodEnd"}:
-                params.append({"name": name, "valueDate": str(value)})
-            else:
-                params.append({"name": name, "valueString": str(value)})
-        params.append(
-            {
-                "name": "data",
-                "resource": {
-                    "resourceType": "Bundle",
-                    "type": "collection",
-                    "entry": collection_entries,
-                },
-            }
-        )
+        params = _query_params_from_spec(scenario, patient_id)
+        params.append({"name": "data", "resource": _bundle_as_collection(bundle)})
         return {"resourceType": "Parameters", "parameter": params}
     return bundle
+
+
+def load_phase_assembly_spec(
+    spec: dict[str, Any],
+    data_cfg: dict[str, Any] | None,
+    phase: str,
+) -> dict[str, Any] | None:
+    if not isinstance(data_cfg, dict):
+        return None
+    phase_cfg = data_cfg.get(phase)
+    if not isinstance(phase_cfg, dict):
+        return None
+    assembly_file = phase_cfg.get("assembly_file")
+    if not isinstance(assembly_file, str) or not assembly_file:
+        return None
+    base_dir = Path(str(spec.get("__base_dir", ".")))
+    assembly_path = base_dir / assembly_file
+    if not assembly_path.exists():
+        raise FileNotFoundError(f"Missing assembly spec for {spec.get('id', '<unknown>')}: {assembly_path}")
+    raw = load_config(assembly_path)
+    if not isinstance(raw, dict):
+        raise ValueError(f"Assembly spec must be an object: {assembly_path}")
+    return raw
+
+
+def is_inline_main_scenario(scenario: dict[str, Any]) -> bool:
+    data_cfg = scenario.get("_data_config")
+    if isinstance(data_cfg, dict):
+        main_cfg = data_cfg.get("main")
+        if isinstance(main_cfg, dict) and str(main_cfg.get("mode", "")) == "inline":
+            return True
+    caps = scenario.get("required_capabilities", [])
+    return isinstance(caps, list) and "inline_bundle_execute" in caps
+
+
+def has_resident_setup(scenario: dict[str, Any]) -> bool:
+    if isinstance(scenario.get("setup"), dict):
+        return True
+    data_cfg = scenario.get("_data_config")
+    return isinstance(data_cfg, dict) and isinstance(data_cfg.get("setup"), dict)
+
+
+def scenario_execution_rank(scenario: dict[str, Any]) -> tuple[int, str]:
+    if is_conformance_scenario(scenario):
+        return (0, str(scenario.get("id", "")))
+    if has_resident_setup(scenario):
+        return (1, str(scenario.get("id", "")))
+    if is_inline_main_scenario(scenario):
+        return (2, str(scenario.get("id", "")))
+    return (1, str(scenario.get("id", "")))
+
+
+def order_scenarios_for_execution(scenarios: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(scenarios, key=scenario_execution_rank)
+
+
+def _resource_key_from_entry(entry: dict[str, Any]) -> tuple[str, str] | None:
+    resource = entry.get("resource")
+    if not isinstance(resource, dict):
+        return None
+    resource_type = str(resource.get("resourceType", ""))
+    resource_id = str(resource.get("id", ""))
+    if not resource_type or not resource_id:
+        return None
+    return (resource_type, resource_id)
+
+
+def _paired_preload_scenario_spec(inline_scenario: dict[str, Any]) -> dict[str, Any]:
+    inline_id = str(inline_scenario.get("id", ""))
+    if not inline_id.endswith("-I"):
+        raise ValueError(f"Inline assembly pairing requires an -I scenario id, got {inline_id}")
+    preload_id = inline_id[:-2] + "-P"
+    base_dir = Path(str(inline_scenario.get("__base_dir", ".")))
+    scenario_dir = base_dir.parent / preload_id
+    scenario_file = scenario_dir / "scenario.yaml"
+    if not scenario_file.exists():
+        raise FileNotFoundError(f"Paired preload scenario not found for {inline_id}: {scenario_file}")
+    preload_spec = load_config(scenario_file)
+    if not isinstance(preload_spec, dict):
+        raise ValueError(f"Invalid paired preload scenario config: {scenario_file}")
+    preload_spec["__base_dir"] = scenario_dir
+    data_file = preload_spec.get("data_file")
+    if isinstance(data_file, str):
+        preload_spec["_data_config"] = load_config(scenario_dir / data_file)
+    return preload_spec
+
+
+def _filter_transaction_bundle(bundle: dict[str, Any], allowed_keys: set[tuple[str, str]]) -> dict[str, Any]:
+    entries: list[dict[str, Any]] = []
+    for entry in bundle.get("entry", []):
+        if not isinstance(entry, dict):
+            continue
+        key = _resource_key_from_entry(entry)
+        if key is not None and key in allowed_keys:
+            entries.append(copy.deepcopy(entry))
+    return {"resourceType": "Bundle", "type": "transaction", "entry": entries}
+
+
+def compile_inline_payload_from_assembly(
+    scenario: dict[str, Any],
+    patient_id: str,
+    selectivity: float,
+    resident_bundle: dict[str, Any],
+) -> Any:
+    assembly = load_phase_assembly_spec(scenario, scenario.get("_data_config"), "main")
+    if assembly is None:
+        raise ValueError(f"Inline scenario {scenario.get('id', '<unknown>')} is missing main.assembly_file")
+    source = str(assembly.get("source", ""))
+    output_mode = str(assembly.get("output_mode", "parameters_data"))
+    if source != "paired_preload_setup":
+        raise ValueError(f"Unsupported inline assembly source '{source}' for {scenario.get('id', '<unknown>')}")
+    preload_spec = _paired_preload_scenario_spec(scenario)
+    preload_data_cfg = preload_spec.get("_data_config")
+    if not isinstance(preload_data_cfg, dict):
+        raise ValueError(f"Paired preload scenario for {scenario.get('id', '<unknown>')} has no data config")
+    preload_setup = preload_data_cfg.get("setup")
+    if not isinstance(preload_setup, dict):
+        raise ValueError(f"Paired preload scenario for {scenario.get('id', '<unknown>')} has no setup phase")
+    source_bundle = _payload_from_data_config(preload_spec, preload_data_cfg, patient_id, selectivity, "setup")
+    if not isinstance(source_bundle, dict) or source_bundle.get("resourceType") != "Bundle":
+        raise ValueError(f"Paired preload setup did not produce a Bundle for {scenario.get('id', '<unknown>')}")
+    allowed_keys = {
+        key
+        for entry in source_bundle.get("entry", [])
+        if isinstance(entry, dict)
+        for key in [_resource_key_from_entry(entry)]
+        if key is not None
+    }
+    compiled_bundle = _filter_transaction_bundle(resident_bundle, allowed_keys)
+    if not compiled_bundle.get("entry"):
+        raise ValueError(
+            f"Inline assembly selected zero resources for {scenario.get('id', '<unknown>')} patient {patient_id}"
+        )
+    return assemble_inline_output(compiled_bundle, scenario, patient_id, output_mode)
 
 
 def percentile(values: list[float], p: float) -> float:
@@ -2951,6 +3109,8 @@ def _payload_from_data_config(
             if cand.suffix.lower() in {".yaml", ".yml"}:
                 return load_config(cand)
             return json.loads(cand.read_text(encoding="utf-8"))
+        if phase_cfg.get("require_generated_input"):
+            raise FileNotFoundError(f"Missing generated payload for {spec.get('id', '<unknown>')} patient {patient_id}: {bundle_dir}")
 
     generator = phase_cfg.get("generator")
     if isinstance(generator, dict) and str(generator.get("type", "")) == "fsh_mutation":
@@ -3005,6 +3165,378 @@ def _override_phase_with_generated_input(
     data_cfg[phase] = phase_cfg
 
 
+DATASET_MANIFEST_NAME = "dataset.json"
+
+
+def read_dataset_manifest(root: Path | None) -> dict[str, Any] | None:
+    """Read ``dataset.json`` from a generated payload tree, if present."""
+    if root is None:
+        return None
+    path = root / DATASET_MANIFEST_NAME
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+def merge_transaction_bundle_payloads(payloads: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Merge FHIR transaction ``Bundle`` payloads into one bundle; dedupe by (resourceType, id)."""
+    entries: list[dict[str, Any]] = []
+    seen_rid: set[tuple[str, str]] = set()
+    for bundle in payloads:
+        if not isinstance(bundle, dict) or bundle.get("resourceType") != "Bundle":
+            continue
+        for ent in bundle.get("entry") or []:
+            if not isinstance(ent, dict):
+                continue
+            res = ent.get("resource")
+            if isinstance(res, dict):
+                rt = str(res.get("resourceType", ""))
+                rid = str(res.get("id", ""))
+                if rt and rid:
+                    key = (rt, rid)
+                    if key in seen_rid:
+                        continue
+                    seen_rid.add(key)
+            entries.append(ent)
+    if not entries:
+        return None
+    return {"resourceType": "Bundle", "type": "transaction", "entry": entries}
+
+
+def canonical_json_text(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def resource_key(resource: dict[str, Any]) -> tuple[str, str] | None:
+    resource_type = str(resource.get("resourceType", ""))
+    resource_id = str(resource.get("id", ""))
+    if not resource_type or not resource_id:
+        return None
+    return (resource_type, resource_id)
+
+
+def resource_key_string(resource: dict[str, Any]) -> str | None:
+    key = resource_key(resource)
+    if key is None:
+        return None
+    return f"{key[0]}/{key[1]}"
+
+
+def transaction_bundle_entries(bundle: dict[str, Any]) -> list[dict[str, Any]]:
+    if not isinstance(bundle, dict) or bundle.get("resourceType") != "Bundle":
+        return []
+    entries = bundle.get("entry")
+    if not isinstance(entries, list):
+        return []
+    return [entry for entry in entries if isinstance(entry, dict)]
+
+
+def bundle_resource_type_counts(bundle: dict[str, Any]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for entry in transaction_bundle_entries(bundle):
+        resource = entry.get("resource")
+        if not isinstance(resource, dict):
+            continue
+        resource_type = str(resource.get("resourceType", ""))
+        if not resource_type:
+            continue
+        counts[resource_type] = counts.get(resource_type, 0) + 1
+    return counts
+
+
+def bundle_resource_key_map(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for entry in transaction_bundle_entries(bundle):
+        resource = entry.get("resource")
+        if not isinstance(resource, dict):
+            continue
+        key = resource_key_string(resource)
+        if key is not None:
+            out[key] = resource
+    return out
+
+
+def starter_selectivity(defaults: dict[str, Any]) -> float:
+    try:
+        return float(defaults.get("selectivity", 0.2))
+    except (TypeError, ValueError):
+        return 0.2
+
+
+def build_resident_bundle_for_patient(
+    scenarios: list[dict[str, Any]],
+    patient_id: str,
+    default_selectivity: float,
+) -> dict[str, Any] | None:
+    adapter = EngineAdapter()
+    bundles: list[dict[str, Any]] = []
+    for scenario in order_scenarios_for_execution(scenarios):
+        if not isinstance(scenario.get("setup"), dict):
+            continue
+        sel = resolve_selectivity(scenario, {"selectivity": default_selectivity}, default_selectivity)
+        setup_spec = dict(scenario.get("setup", {}))
+        setup_spec["_data_config"] = scenario.get("_data_config")
+        setup_spec["__base_dir"] = scenario.get("__base_dir")
+        payload = prepare_payload(
+            setup_spec,
+            patient_id,
+            adapter,
+            selectivity=sel,
+            phase="setup",
+            apply_adapter=False,
+        )
+        if isinstance(payload, dict) and payload.get("resourceType") == "Bundle":
+            bundles.append(payload)
+    return merge_transaction_bundle_payloads(bundles)
+
+
+def shared_resource_conflicts_by_key(
+    bundles_by_patient: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, str]]:
+    seen: dict[str, str] = {}
+    patients_by_key: dict[str, str] = {}
+    conflicts: dict[str, dict[str, str]] = {}
+    for patient_id, bundle in bundles_by_patient.items():
+        for key, resource in bundle_resource_key_map(bundle).items():
+            digest = sha256_hex(canonical_json_text(resource))
+            if key not in seen:
+                seen[key] = digest
+                patients_by_key[key] = patient_id
+                continue
+            if seen[key] != digest:
+                conflicts[key] = {
+                    "first_patient": patients_by_key[key],
+                    "conflicting_patient": patient_id,
+                }
+    return conflicts
+
+
+def emit_starter_bundle(
+    out_root: Path,
+    scenarios: list[dict[str, Any]],
+    defaults: dict[str, Any],
+) -> dict[str, Any] | None:
+    starter_bundle = build_resident_bundle_for_patient(scenarios, "p1", starter_selectivity(defaults))
+    if starter_bundle is None:
+        return None
+    starter_dir = out_root / "corpus" / "starter"
+    starter_dir.mkdir(parents=True, exist_ok=True)
+    (starter_dir / "p1.json").write_text(json.dumps(starter_bundle, indent=2) + "\n", encoding="utf-8")
+    return starter_bundle
+
+
+def coverage_row_for_inline_scenario(
+    scenario: dict[str, Any],
+    patient_id: str,
+    selectivity: float,
+) -> dict[str, Any]:
+    preload_spec = _paired_preload_scenario_spec(scenario)
+    preload_data_cfg = preload_spec.get("_data_config")
+    source_bundle = _payload_from_data_config(preload_spec, preload_data_cfg, patient_id, selectivity, "setup")
+    if not isinstance(source_bundle, dict) or source_bundle.get("resourceType") != "Bundle":
+        raise ValueError(f"Unable to build preload source bundle for inline coverage row {scenario.get('id', '<unknown>')}")
+    validation_ctx = build_validation_context(scenario, [patient_id], selectivity)
+    required_keys = sorted(
+        key
+        for entry in transaction_bundle_entries(source_bundle)
+        if isinstance(entry.get("resource"), dict)
+        for key in [resource_key_string(entry["resource"])]
+        if key is not None
+    )
+    return {
+        "patient_id": patient_id,
+        "scenario_id": str(scenario.get("id", "")),
+        "source": "paired_preload_setup",
+        "required_resource_keys": required_keys,
+        "required_type_counts": bundle_resource_type_counts(source_bundle),
+        "match_count": int(validation_ctx.get("match_count", 0)),
+        "nomatch_count": int(validation_ctx.get("nomatch_count", 0)),
+        "null_id_count": int(validation_ctx.get("null_id_count", 0)),
+    }
+
+
+def validate_coverage_rows(
+    rows: list[dict[str, Any]],
+    bundles_by_patient: dict[str, dict[str, Any]],
+) -> None:
+    for row in rows:
+        patient_id = str(row.get("patient_id", ""))
+        scenario_id = str(row.get("scenario_id", ""))
+        bundle = bundles_by_patient.get(patient_id)
+        if bundle is None:
+            raise ValueError(f"Coverage validation missing resident bundle for patient {patient_id}")
+        available_keys = set(bundle_resource_key_map(bundle).keys())
+        required_keys = [str(key) for key in row.get("required_resource_keys", [])]
+        missing = [key for key in required_keys if key not in available_keys]
+        if missing:
+            raise ValueError(
+                f"Coverage validation failed for {scenario_id} {patient_id}: missing resource keys {missing[:5]}"
+            )
+        available_type_counts = bundle_resource_type_counts(bundle)
+        for resource_type, min_count in (row.get("required_type_counts") or {}).items():
+            try:
+                needed = int(min_count)
+            except (TypeError, ValueError):
+                needed = 0
+            if available_type_counts.get(str(resource_type), 0) < needed:
+                raise ValueError(
+                    f"Coverage validation failed for {scenario_id} {patient_id}: "
+                    f"need at least {needed} {resource_type}, got {available_type_counts.get(str(resource_type), 0)}"
+                )
+
+
+def write_corpus_coverage_manifest(
+    out_root: Path,
+    rows: list[dict[str, Any]],
+    bundles_by_patient: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    conflicts = shared_resource_conflicts_by_key(bundles_by_patient)
+    manifest = {
+        "version": 1,
+        "rows": rows,
+        "shared_resource_conflicts": conflicts,
+    }
+    path = out_root / "corpus_coverage.json"
+    path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    if conflicts:
+        keys = ", ".join(sorted(conflicts.keys())[:5])
+        raise ValueError(f"Shared resource key conflicts across patients: {keys}")
+    validate_coverage_rows(rows, bundles_by_patient)
+    return manifest
+
+
+def is_unified_corpus_layout(generated_root: Path) -> bool:
+    return (generated_root.resolve() / "corpus" / "setup").is_dir()
+
+
+def has_generated_preload_layout(generated_root: Path) -> bool:
+    return (generated_root.resolve() / "corpus" / "preload").is_dir()
+
+
+def apply_generated_corpus_main_overrides(
+    scenarios: list[dict[str, Any]],
+    generated_root: Path,
+) -> list[dict[str, Any]]:
+    """Point each scenario's ``main`` phase at generated inline payload directories."""
+    root = generated_root.resolve()
+    out: list[dict[str, Any]] = []
+    for scenario in scenarios:
+        updated = copy.deepcopy(scenario)
+        sid = str(updated.get("id", ""))
+        data_cfg = copy.deepcopy(updated.get("_data_config") or {})
+        main_dir = root / "corpus" / "inline" / sid
+        used_legacy_main = False
+        if not main_dir.is_dir():
+            legacy_dir = root / "corpus" / "main" / sid
+            if legacy_dir.is_dir():
+                main_dir = legacy_dir
+                used_legacy_main = True
+        if main_dir.is_dir():
+            phase_cfg = copy.deepcopy(data_cfg.get("main") or {})
+            phase_cfg["input_bundle_dir"] = str(main_dir)
+            phase_cfg["require_generated_input"] = True
+            phase_cfg.pop("input_bundle_path", None)
+            phase_cfg.pop("payload_template", None)
+            phase_cfg.pop("payload", None)
+            phase_cfg.pop("raw_body", None)
+            data_cfg["main"] = phase_cfg
+            if used_legacy_main:
+                print(
+                    f"Warning: falling back to legacy generated inline path corpus/main/{sid}; "
+                    "prefer corpus/inline/ for unified-corpus-v3 trees.",
+                    file=sys.stderr,
+                )
+        updated["_data_config"] = data_cfg
+        out.append(updated)
+    return out
+
+
+def first_resident_bundle_setup_template(scenarios_list: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for s in scenarios_list:
+        st = s.get("setup")
+        if isinstance(st, dict) and st.get("path_role") == "data":
+            return s
+    return None
+
+
+def load_unified_corpus_preload(
+    engine: dict[str, Any],
+    template_scenario: dict[str, Any],
+    patient_ids: list[str],
+    corpus_root: Path,
+    timeout: int,
+    adapter: EngineAdapter,
+    strict_mode: bool,
+    suite_defaults: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """POST ``corpus/setup/<patient>.json`` once per patient (merged resident FHIR)."""
+    setup = template_scenario.get("setup")
+    if not isinstance(setup, dict):
+        return None
+    setup_spec = dict(setup)
+    setup_spec["_data_config"] = template_scenario.get("_data_config")
+    setup_spec["__base_dir"] = template_scenario.get("__base_dir")
+    method = setup_spec.get("method", "POST")
+    method = adapter.adapt_method(setup_spec, method, phase="setup")
+    policy = resolve_http_policy_for_spec(setup_spec, strict_mode, suite_defaults=suite_defaults)
+    status_counts: dict[str, int] = {}
+    latencies: list[float] = []
+    success_count = 0
+    unsupported_count = 0
+    warning_count = 0
+    timeout_count = 0
+    fail_count = 0
+    total = 0
+    setup_dir = corpus_root.resolve() / "corpus" / "setup"
+    for patient_id in patient_ids:
+        pfile = setup_dir / f"{patient_id}.json"
+        if not pfile.is_file():
+            continue
+        raw_payload = json.loads(pfile.read_text(encoding="utf-8"))
+        total += 1
+        if str(method).upper() in {"POST", "PUT"}:
+            _cleanup_setup_target(engine, setup_spec, patient_id, timeout, raw_payload)
+        url = endpoint_url(engine, setup_spec, patient_id, adapter, phase="setup", payload=raw_payload)
+        payload = adapter.adapt_payload(setup_spec, raw_payload, phase="setup") if raw_payload is not None else None
+        status, ms, _ = request_once(
+            method,
+            url,
+            expand_headers(engine.get("headers", {})),
+            payload,
+            timeout,
+            setup_spec.get("content_type"),
+        )
+        latencies.append(ms)
+        status_counts[str(status)] = status_counts.get(str(status), 0) + 1
+        outcome = classify_status(status, policy)
+        if outcome == "success":
+            success_count += 1
+        elif outcome == "unsupported":
+            unsupported_count += 1
+        elif outcome == "warning":
+            warning_count += 1
+        elif outcome == "timeout":
+            timeout_count += 1
+            fail_count += 1
+        else:
+            fail_count += 1
+    return {
+        "total_requests": total,
+        "pass_requests": success_count,
+        "pass_rate": (success_count / total) if total else 0.0,
+        "failure_rate": (fail_count / total) if total else 0.0,
+        "unsupported_requests": unsupported_count,
+        "warning_requests": warning_count,
+        "timeout_requests": timeout_count,
+        "status_counts": status_counts,
+        "latency_ms_avg": statistics.mean(latencies) if latencies else 0.0,
+    }
+
+
 def apply_generated_data_root_overrides(
     scenarios: list[dict[str, Any]],
     generated_root: Path,
@@ -3023,6 +3555,116 @@ def apply_generated_data_root_overrides(
         updated["_data_config"] = data_cfg
         out.append(updated)
     return out
+
+
+def generate_scenario_payload_files(
+    out_root: Path,
+    scale: int,
+    selectivity: float,
+) -> int:
+    """Build one merged resident corpus plus compiled per-scenario inline payloads.
+
+    Output layout (``unified-corpus-v3``):
+
+    - ``corpus/setup/<patient_id>.json`` — one merged transaction Bundle per patient
+      (all scenario setup payloads combined; deduped by resource id).
+    - ``corpus/inline/<scenario_id>/<patient_id>.json`` — compiled request-time payloads
+      for inline (-I) scenarios.
+
+    The benchmark definition always comes from ``DEFAULT_BENCHMARK_SUITE``; there
+    is no per-run suite path for generate.
+    """
+    suite, scenarios, _ = load_suite_with_scenarios(DEFAULT_BENCHMARK_SUITE)
+    defaults = suite.get("defaults", {}) if isinstance(suite.get("defaults", {}), dict) else {}
+    patient_ids = build_patient_ids(scale)
+    ordered = order_scenarios_for_execution(scenarios)
+    out_root.mkdir(parents=True, exist_ok=True)
+    corpus_setup = out_root / "corpus" / "setup"
+    corpus_inline = out_root / "corpus" / "inline"
+    corpus_preload = out_root / "corpus" / "preload"
+    corpus_setup.mkdir(parents=True, exist_ok=True)
+    corpus_inline.mkdir(parents=True, exist_ok=True)
+    corpus_preload.mkdir(parents=True, exist_ok=True)
+    starter_bundle = emit_starter_bundle(out_root, scenarios, defaults)
+    generated = 0
+    bundles_by_patient: dict[str, dict[str, Any]] = {}
+    coverage_rows: list[dict[str, Any]] = []
+    for patient_id in patient_ids:
+        merged = build_resident_bundle_for_patient(scenarios, patient_id, selectivity)
+        if merged is not None:
+            (corpus_setup / f"{patient_id}.json").write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+            generated += 1
+            bundles_by_patient[patient_id] = merged
+        for scenario in ordered:
+            if isinstance(scenario.get("setup"), dict):
+                sid = str(scenario.get("id", ""))
+                sel = resolve_selectivity(scenario, defaults, selectivity)
+                setup_spec = dict(scenario.get("setup", {}))
+                setup_spec["_data_config"] = scenario.get("_data_config")
+                setup_spec["__base_dir"] = scenario.get("__base_dir")
+                setup_payload = prepare_payload(
+                    setup_spec,
+                    patient_id,
+                    EngineAdapter(),
+                    selectivity=sel,
+                    phase="setup",
+                    apply_adapter=False,
+                )
+                if setup_payload is not None:
+                    setup_dir = corpus_preload / sid / "setup"
+                    setup_dir.mkdir(parents=True, exist_ok=True)
+                    setup_file = setup_dir / f"{patient_id}.json"
+                    if isinstance(setup_payload, (dict, list)):
+                        setup_file.write_text(json.dumps(setup_payload, indent=2) + "\n", encoding="utf-8")
+                    else:
+                        setup_file.write_text(str(setup_payload), encoding="utf-8")
+                    generated += 1
+            if not is_inline_main_scenario(scenario):
+                continue
+            sid = str(scenario.get("id", ""))
+            sel = resolve_selectivity(scenario, defaults, selectivity)
+            if merged is None:
+                raise ValueError(f"Inline compilation requires resident corpus, but no setup bundle was generated for {patient_id}")
+            spec = dict(scenario)
+            spec["_data_config"] = scenario.get("_data_config")
+            spec["__base_dir"] = scenario.get("__base_dir")
+            payload = compile_inline_payload_from_assembly(spec, patient_id, sel, merged)
+            if payload is None:
+                raise ValueError(f"Missing compiled inline payload for {sid} patient {patient_id}")
+            out_dir = corpus_inline / sid
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_file = out_dir / f"{patient_id}.json"
+            if isinstance(payload, (dict, list)):
+                out_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            else:
+                out_file.write_text(str(payload), encoding="utf-8")
+            generated += 1
+            coverage_rows.append(coverage_row_for_inline_scenario(spec, patient_id, sel))
+
+    coverage_manifest = write_corpus_coverage_manifest(out_root, coverage_rows, bundles_by_patient)
+
+    manifest: dict[str, Any] = {
+        "layout": "unified-corpus-v3",
+        "suite_id": suite.get("suite_id"),
+        "suite_file": str(DEFAULT_BENCHMARK_SUITE),
+        "scale": scale,
+        "selectivity": selectivity,
+        "starter_selectivity": starter_selectivity(defaults),
+        "starter_mode": "starter-equivalent-fsh-v1",
+        "permutation_strategy": "mechanical_patient_id_replay",
+        "starter_bundle_path": "corpus/starter/p1.json" if starter_bundle is not None else None,
+        "coverage_manifest_path": "corpus_coverage.json",
+        "corpus_setup_path": "corpus/setup/<patient_id>.json",
+        "corpus_preload_path": "corpus/preload/<scenario_id>/setup/<patient_id>.json",
+        "corpus_inline_path": "corpus/inline/<scenario_id>/<patient_id>.json",
+        "description": "Single merged resident FHIR corpus per patient; inline payloads compiled during generate.",
+        "shared_resource_conflict_count": len(coverage_manifest.get("shared_resource_conflicts", {})),
+    }
+    (out_root / DATASET_MANIFEST_NAME).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+    print(f"Generated {generated} payload file(s) under {out_root} (shared corpus + compiled inline layout)")
+    print(f"Wrote {out_root / DATASET_MANIFEST_NAME}")
+    return 0
 
 
 def _iter_cleanup_bundles(payload: Any) -> list[dict[str, Any]]:
@@ -3302,7 +3944,6 @@ def setup_for_scenario(
 def run_scenario(
     engine: dict[str, Any],
     scenario: dict[str, Any],
-    all_scenarios: list[dict[str, Any]] | None,
     patient_ids: list[str],
     concurrency: int,
     timeout: int,
@@ -3313,7 +3954,6 @@ def run_scenario(
     selectivity: float = 0.2,
     strict_mode: bool = False,
     suite_defaults: dict[str, Any] | None = None,
-    ensure_artifacts: bool = False,
 ) -> dict[str, Any]:
     validation_context = build_validation_context(
         scenario,
@@ -3327,18 +3967,6 @@ def run_scenario(
     headers = expand_headers(engine.get("headers", {}))
     conformance_only = is_conformance_scenario(scenario)
     endpoint_used: dict[str, Any] | None = None
-
-    if ensure_artifacts:
-        ensure_scenarios = [scenario]
-        conf_id = scenario.get("_endpoint_conf_id")
-        if isinstance(conf_id, str) and isinstance(all_scenarios, list):
-            conf_s = next((s for s in all_scenarios if s.get("id") == conf_id), None)
-            if isinstance(conf_s, dict):
-                ensure_scenarios.append(conf_s)
-        preload_required_libraries(engine, ensure_scenarios, timeout)
-        preload_scenario_cql_libraries(engine, ensure_scenarios, timeout)
-        preload_required_measures(engine, ensure_scenarios, timeout)
-        preload_standard_valuesets(engine, timeout)
 
     if conformance_only:
         total_requests = max(1, int(repetitions))
@@ -3522,37 +4150,6 @@ def run_scenario(
                 )
             for fut in as_completed(warmup_tasks):
                 fut.result()
-
-    if bool(scenario.get("restart_after_setup", False)):
-        restarted = restart_engine_container(engine)
-        if not restarted:
-            print(f"{scenario['id']}: requested restart_after_setup but container restart was not performed")
-        else:
-            # Rehydrate only the current scenario prerequisites (and its conf endpoint source),
-            # not the whole suite, to avoid repeated global preloads between tests.
-            rehydrate_scenarios = [scenario]
-            conf_id = scenario.get("_endpoint_conf_id")
-            if isinstance(conf_id, str) and isinstance(all_scenarios, list):
-                conf_s = next((s for s in all_scenarios if s.get("id") == conf_id), None)
-                if isinstance(conf_s, dict):
-                    rehydrate_scenarios.append(conf_s)
-            preload_required_libraries(engine, rehydrate_scenarios, timeout)
-            preload_scenario_cql_libraries(engine, rehydrate_scenarios, timeout)
-            preload_required_measures(engine, rehydrate_scenarios, timeout)
-            preload_standard_valuesets(engine, timeout)
-            if setup_result is not None:
-                scenario_no_restart = dict(scenario)
-                scenario_no_restart["restart_after_setup"] = False
-                setup_result = setup_for_scenario(
-                    engine,
-                    scenario_no_restart,
-                    patient_ids,
-                    timeout,
-                    adapter,
-                    selectivity=selectivity,
-                    strict_mode=strict_mode,
-                    suite_defaults=suite_defaults,
-                )
 
     all_latencies: list[float] = []
     timed_latencies: list[float] = []
@@ -3770,49 +4367,6 @@ def get_git_commit() -> str | None:
         return out or None
     except Exception:  # noqa: BLE001
         return None
-
-
-def wait_for_engine_health(engine: dict[str, Any], timeout_seconds: int = 90) -> bool:
-    docker = engine.get("docker")
-    if not isinstance(docker, dict):
-        return True
-    health_path = docker.get("health_path")
-    if not isinstance(health_path, str) or not health_path:
-        return True
-    base_url = str(engine.get("base_url", "")).rstrip("/")
-    if not base_url:
-        return False
-    health_url = base_url + (health_path if health_path.startswith("/") else f"/{health_path}")
-
-    deadline = time.time() + max(1, timeout_seconds)
-    while time.time() < deadline:
-        try:
-            req = urllib.request.Request(health_url, method="GET")
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                code = int(getattr(resp, "status", 0) or 0)
-                if 200 <= code < 500:
-                    return True
-        except Exception:  # noqa: BLE001
-            pass
-        time.sleep(2)
-    return False
-
-
-def restart_engine_container(engine: dict[str, Any]) -> bool:
-    docker = engine.get("docker")
-    if not isinstance(docker, dict):
-        return False
-    if not docker.get("enabled", False):
-        return False
-    container_name = docker.get("container_name")
-    if not isinstance(container_name, str) or not container_name:
-        return False
-    try:
-        subprocess.run(["docker", "stop", container_name], check=True, text=True, capture_output=True)
-        subprocess.run(["docker", "start", container_name], check=True, text=True, capture_output=True)
-        return wait_for_engine_health(engine)
-    except Exception:  # noqa: BLE001
-        return False
 
 
 def write_markdown_summary(report: dict[str, Any], out_md: Path) -> None:
@@ -4108,10 +4662,31 @@ def write_markdown_summary(report: dict[str, Any], out_md: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run CQF engine comparison benchmark")
+    parser = argparse.ArgumentParser(
+        description="CQF Bench: generate payload files, load data into engines, or execute benchmarks (pick --run-phase)",
+    )
     parser.add_argument("--engines", type=Path, default=Path("bench/config/engines.example.yaml"))
-    parser.add_argument("--suite", type=Path, default=Path("bench/scenarios/tpcqf/suite.yaml"))
-    parser.add_argument("--scale", type=int, required=True, help="Number of patients (e.g., 100, 10000, 1000000)")
+    parser.add_argument(
+        "--suite",
+        type=Path,
+        default=None,
+        help="Optional override: suite.yaml path for load/execute. Generate always uses the built-in benchmark suite. "
+        "When omitted, load/execute use suite_file from dataset.json (legacy trees) or the default suite path.",
+    )
+    parser.add_argument(
+        "--scenario",
+        action="append",
+        default=[],
+        metavar="SCENARIO_ID",
+        help="Execute phase only: run only these scenario id(s); flag may be repeated. Omit to run the full suite.",
+    )
+    parser.add_argument(
+        "--scale",
+        type=int,
+        default=None,
+        help="Synthetic patient count. Required for generate. For load/execute, optional if dataset.json "
+        "under --generated-data-root records scale.",
+    )
     parser.add_argument("--out", type=Path, default=Path("results"))
     parser.add_argument("--concurrency", type=int, default=None)
     parser.add_argument("--timeout", type=int, default=None)
@@ -4130,15 +4705,15 @@ def main() -> int:
     )
     parser.add_argument(
         "--run-phase",
-        choices=["full", "load", "execute"],
-        default="full",
-        help="full=setup+execute, load=preload data only, execute=execute tests only (no setup)",
+        choices=["generate", "load", "execute"],
+        required=True,
+        help="generate=build shared resident corpus + compiled inline payloads; load=preload resident data into engine(s); execute=run benchmark and emit report",
     )
     parser.add_argument(
         "--generated-data-root",
         type=Path,
         default=None,
-        help="Root directory of pre-generated payloads from generate_scenario_data.py",
+        help="Generated data tree: required for generate (output) and load (input); optional for execute (compiled inline/resident overrides).",
     )
     parser.add_argument(
         "--repetitions",
@@ -4148,16 +4723,67 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if args.run_phase == "load" and args.scenario:
+        print("Note: --scenario applies only to --run-phase execute; ignored for load.", file=sys.stderr)
+
+    manifest = read_dataset_manifest(args.generated_data_root) if args.generated_data_root else None
+
+    if args.run_phase == "generate":
+        if args.generated_data_root is None:
+            parser.error("--generated-data-root is required for --run-phase generate (output directory for generated corpus artifacts)")
+        if args.scale is None:
+            parser.error("--scale is required for --run-phase generate")
+        if args.suite is not None:
+            print("Note: --suite is ignored for --run-phase generate (single built-in suite).", file=sys.stderr)
+        return generate_scenario_payload_files(
+            args.generated_data_root,
+            args.scale,
+            args.selectivity,
+        )
+
+    if args.run_phase == "load" and args.generated_data_root is None:
+        parser.error("--generated-data-root is required for --run-phase load")
+
+    if args.suite is None:
+        if manifest and isinstance(manifest.get("suite_file"), str):
+            args.suite = Path(manifest["suite_file"])
+        else:
+            args.suite = DEFAULT_BENCHMARK_SUITE
+    if args.scale is None:
+        if manifest is not None and manifest.get("scale") is not None:
+            try:
+                args.scale = int(manifest["scale"])
+            except (TypeError, ValueError):
+                parser.error("dataset.json: invalid scale")
+        else:
+            parser.error("--scale is required when dataset.json is missing or has no scale")
+
     engines_doc = load_config(args.engines)
     suite, scenarios, suite_files = load_suite_with_scenarios(args.suite)
+    unified_corpus = args.generated_data_root is not None and is_unified_corpus_layout(args.generated_data_root)
     if args.generated_data_root is not None:
         root = args.generated_data_root
-        if args.run_phase == "load":
+        if unified_corpus:
+            if args.run_phase == "execute":
+                scenarios = apply_generated_corpus_main_overrides(scenarios, root)
+                if has_generated_preload_layout(root):
+                    scenarios = apply_generated_data_root_overrides(
+                        scenarios,
+                        root / "corpus" / "preload",
+                        use_setup_phase=True,
+                        use_main_phase=False,
+                    )
+            elif args.run_phase == "load" and has_generated_preload_layout(root):
+                scenarios = apply_generated_data_root_overrides(
+                    scenarios,
+                    root / "corpus" / "preload",
+                    use_setup_phase=True,
+                    use_main_phase=False,
+                )
+        elif args.run_phase == "load":
             scenarios = apply_generated_data_root_overrides(scenarios, root, use_setup_phase=True, use_main_phase=False)
         elif args.run_phase == "execute":
             scenarios = apply_generated_data_root_overrides(scenarios, root, use_setup_phase=False, use_main_phase=True)
-        else:
-            scenarios = apply_generated_data_root_overrides(scenarios, root, use_setup_phase=True, use_main_phase=True)
 
     defaults = suite.get("defaults", {})
     concurrency = args.concurrency or defaults.get("concurrency", 16)
@@ -4185,6 +4811,8 @@ def main() -> int:
     if args.run_phase == "load":
         patient_ids = build_patient_ids(args.scale)
         had_failures = False
+        load_root = args.generated_data_root
+        assert load_root is not None
         for engine in engines:
             engine_base = engine.get("cqf_base_path", "")
             adapter_name = engine.get("adapter", "generic-cqf")
@@ -4195,38 +4823,40 @@ def main() -> int:
             preload_required_measures(engine, scenarios, timeout)
             preload_standard_valuesets(engine, timeout)
 
-            ordered_scenarios = [s for s in scenarios if is_conformance_scenario(s)] + [
-                s for s in scenarios if not is_conformance_scenario(s)
-            ]
-            for scenario in ordered_scenarios:
-                if is_conformance_scenario(scenario):
+            ordered_scenarios = order_scenarios_for_execution(scenarios)
+            if unified_corpus and not has_generated_preload_layout(load_root):
+                template = first_resident_bundle_setup_template(scenarios)
+                if template is None:
+                    for s in scenarios:
+                        if isinstance(s.get("setup"), dict):
+                            template = s
+                            break
+                if template is None:
+                    print("Unified corpus (corpus/setup/) present but no scenario defines setup; skipping resident preload")
                     continue
-                if not supports_scenario(engine, scenario):
-                    needed = set(scenario.get("required_capabilities", []))
+                if not supports_scenario(engine, template):
+                    needed = set(template.get("required_capabilities", []))
                     missing = sorted(list(needed - set(engine.get("capabilities", []))))
                     missing_capability = missing[0] if missing else "unknown"
-                    print(f"{scenario['id']} {scenario['name']}: skipped (missing {missing_capability})")
+                    print(f"unified_preload: skipped (engine missing {missing_capability} for template {template.get('id')})")
                     continue
-                if not isinstance(scenario.get("setup"), dict):
-                    print(f"{scenario['id']} {scenario['name']}: skipped (no setup block)")
-                    continue
-                setup_result = setup_for_scenario(
+                setup_result = load_unified_corpus_preload(
                     engine,
-                    scenario,
+                    template,
                     patient_ids,
+                    load_root,
                     timeout,
                     adapter,
-                    selectivity=resolve_selectivity(scenario, defaults, args.selectivity),
                     strict_mode=(args.score_mode == "strict-2xx"),
                     suite_defaults=suite,
                 )
                 if setup_result is None:
-                    print(f"{scenario['id']} {scenario['name']}: skipped (setup returned no result)")
+                    print("unified_preload: skipped (no setup template)")
                     continue
                 pass_rate = float(setup_result.get("pass_rate", 0.0))
                 status_counts = setup_result.get("status_counts", {})
                 print(
-                    f"{scenario['id']} {scenario['name']}: setup_pass={pass_rate:.3f} "
+                    f"unified_preload ({template.get('id')}): setup_pass={pass_rate:.3f} "
                     f"unsupported={setup_result.get('unsupported_requests', 0)} "
                     f"warning={setup_result.get('warning_requests', 0)} "
                     f"timeout={setup_result.get('timeout_requests', 0)} "
@@ -4234,6 +4864,43 @@ def main() -> int:
                 )
                 if pass_rate < 1.0:
                     had_failures = True
+            else:
+                for scenario in ordered_scenarios:
+                    if is_conformance_scenario(scenario):
+                        continue
+                    if not supports_scenario(engine, scenario):
+                        needed = set(scenario.get("required_capabilities", []))
+                        missing = sorted(list(needed - set(engine.get("capabilities", []))))
+                        missing_capability = missing[0] if missing else "unknown"
+                        print(f"{scenario['id']} {scenario['name']}: skipped (missing {missing_capability})")
+                        continue
+                    if not isinstance(scenario.get("setup"), dict):
+                        print(f"{scenario['id']} {scenario['name']}: skipped (no setup block)")
+                        continue
+                    setup_result = setup_for_scenario(
+                        engine,
+                        scenario,
+                        patient_ids,
+                        timeout,
+                        adapter,
+                        selectivity=resolve_selectivity(scenario, defaults, args.selectivity),
+                        strict_mode=(args.score_mode == "strict-2xx"),
+                        suite_defaults=suite,
+                    )
+                    if setup_result is None:
+                        print(f"{scenario['id']} {scenario['name']}: skipped (setup returned no result)")
+                        continue
+                    pass_rate = float(setup_result.get("pass_rate", 0.0))
+                    status_counts = setup_result.get("status_counts", {})
+                    print(
+                        f"{scenario['id']} {scenario['name']}: setup_pass={pass_rate:.3f} "
+                        f"unsupported={setup_result.get('unsupported_requests', 0)} "
+                        f"warning={setup_result.get('warning_requests', 0)} "
+                        f"timeout={setup_result.get('timeout_requests', 0)} "
+                        f"status={status_counts}"
+                    )
+                    if pass_rate < 1.0:
+                        had_failures = True
         return 1 if had_failures else 0
 
     patient_ids = build_patient_ids(args.scale)
@@ -4286,18 +4953,17 @@ def main() -> int:
         preload_required_measures(engine, scenarios, timeout)
         preload_standard_valuesets(engine, timeout)
 
-        ordered_scenarios = [s for s in scenarios if is_conformance_scenario(s)] + [
-            s for s in scenarios if not is_conformance_scenario(s)
-        ]
-        ensure_artifacts_next = False
+        ordered_scenarios = order_scenarios_for_execution(scenarios)
+        scenario_filter = {str(x) for x in args.scenario} if args.scenario else None
         for scenario in ordered_scenarios:
+            if scenario_filter is not None and str(scenario.get("id", "")) not in scenario_filter:
+                continue
             scenario_for_run = scenario
             if not is_conformance_scenario(scenario):
                 scenario_for_run = apply_dynamic_cap_endpoint(scenario, conf_results_by_id)
-                if args.run_phase == "execute":
-                    scenario_for_run = copy.deepcopy(scenario_for_run)
+                scenario_for_run = copy.deepcopy(scenario_for_run)
+                if not isinstance(scenario_for_run.get("setup"), dict):
                     scenario_for_run.pop("setup", None)
-                    scenario_for_run.pop("restart_after_setup", None)
 
             if not supports_scenario(engine, scenario_for_run):
                 needed = set(scenario.get("required_capabilities", []))
@@ -4310,7 +4976,6 @@ def main() -> int:
             result = run_scenario(
                 engine,
                 scenario_for_run,
-                ordered_scenarios,
                 patient_ids,
                 concurrency,
                 timeout,
@@ -4321,9 +4986,7 @@ def main() -> int:
                 selectivity=resolve_selectivity(scenario, defaults, args.selectivity),
                 strict_mode=(args.score_mode == "strict-2xx"),
                 suite_defaults=suite,
-                ensure_artifacts=ensure_artifacts_next,
             )
-            ensure_artifacts_next = bool(scenario_for_run.get("restart_after_setup", False))
             engine_results.append(result)
             if is_conformance_scenario(scenario):
                 conf_results_by_id[scenario["id"]] = result

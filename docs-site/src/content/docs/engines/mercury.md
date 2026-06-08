@@ -78,6 +78,7 @@ the adapter.
 
 ```bash
 python scripts/run_benchmark.py \
+  --run-phase execute \
   --engines bench/config/local.engines.yaml \
   --suite bench/scenarios/tpcqf/suite.yaml \
   --scale 100 \
@@ -99,7 +100,7 @@ These notes are engine-specific observations from local benchmark runs.
 
 For reproducible comparisons, record:
 
-1. exact run mode (`full` vs `load`/`execute`),
+1. exact phases (`generate` / `load` / `execute`) and whether payloads came from `--generated-data-root`,
 2. scale/concurrency/timeout,
 3. image tag and digest (or local build commit),
 4. report JSON artifacts.

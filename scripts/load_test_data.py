@@ -9,11 +9,21 @@ from pathlib import Path
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Load pre-generated scenario setup data into target engine(s) without executing benchmark queries"
+        description="Load one generated dataset into target engine(s) (libraries, measures, valuesets, then one merged resident preload bundle per patient)",
     )
     parser.add_argument("--engines", type=Path, default=Path("bench/config/local.engines.yaml"))
-    parser.add_argument("--suite", type=Path, default=Path("bench/scenarios/tpcqf/suite.yaml"))
-    parser.add_argument("--scale", type=int, required=True)
+    parser.add_argument(
+        "--suite",
+        type=Path,
+        default=None,
+        help="Optional; if omitted, suite path is read from dataset.json under --generated-data-root",
+    )
+    parser.add_argument(
+        "--scale",
+        type=int,
+        default=None,
+        help="Optional; if omitted, scale is read from dataset.json under --generated-data-root",
+    )
     parser.add_argument("--generated-data-root", type=Path, required=True)
     parser.add_argument("--timeout", type=int, default=None)
     parser.add_argument("--selectivity", type=float, default=0.2)
@@ -26,10 +36,6 @@ def main() -> int:
         str(Path(__file__).with_name("run_benchmark.py")),
         "--engines",
         str(args.engines),
-        "--suite",
-        str(args.suite),
-        "--scale",
-        str(args.scale),
         "--generated-data-root",
         str(args.generated_data_root),
         "--run-phase",
@@ -39,6 +45,10 @@ def main() -> int:
         "--score-mode",
         args.score_mode,
     ]
+    if args.suite is not None:
+        cmd.extend(["--suite", str(args.suite)])
+    if args.scale is not None:
+        cmd.extend(["--scale", str(args.scale)])
     if args.timeout is not None:
         cmd.extend(["--timeout", str(args.timeout)])
     for engine_name in args.filter_engine:

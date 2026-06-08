@@ -1,0 +1,3 @@
+version: 1
+source: paired_preload_setup
+output_mode: parameters_data

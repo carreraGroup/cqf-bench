@@ -63,10 +63,9 @@ flowchart TB
   ADP --> AM
   PFQ --> REQ[Concrete HTTP request]
 
-  REQ --> G[generic-cqf<br/>Blaze / Firely]
+  REQ --> G[generic-cqf]
   REQ --> H[hapi-cqf-ruler<br/>GET→POST, instance ops]
   REQ --> M[mercury-cqf<br/>canonical normalize]
-  REQ --> SM[smile-cdr]
 ```
 
 ## 3. Benchmark suite structure
@@ -85,7 +84,7 @@ flowchart TD
 
   CAP --> PFILES[scenario.yaml<br/>scenario.cql<br/>data.yaml<br/>expected.yaml<br/>match.fsh<br/>variations.fsh<br/>mutator.yaml]
 
-  CAP --> P[-P Preload<br/>resident data + restart]
+  CAP --> P[-P Preload<br/>resident data]
   CAP --> I[-I Inline<br/>data in request bundle]
 ```
 

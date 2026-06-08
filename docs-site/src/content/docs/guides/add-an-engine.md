@@ -147,6 +147,7 @@ health route.
 source .venv/bin/activate   # after bootstrap_python_env.sh
 
 python scripts/run_benchmark.py \
+  --run-phase execute \
   --engines bench/config/local.engines.yaml \
   --suite bench/scenarios/tpcqf/suite.yaml \
   --scale 100 \
@@ -167,8 +168,6 @@ Once the smoke run looks right, include your engine alongside others. See
 ```bash
 python scripts/execute_tests.py \
   --engines bench/config/local.engines.yaml \
-  --suite bench/scenarios/tpcqf/suite.yaml \
-  --scale 1000 \
   --generated-data-root data/generated/cmp_s1000_sel20 \
   --filter-engine hapi-cqf-ruler-local \
   --filter-engine my-cqf-server \
